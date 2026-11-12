@@ -6,7 +6,7 @@ A deterministic first-pass auditor for CSV market-data artifacts used in quantit
 
 The v0.3 validator checks:
 - Required schema, duplicate/empty headers, short rows, extra fields, and empty files.
-- Required values, exact decimal numeric parsing (without binary-float precision loss), finite numbers, and non-negative market fields.
+- Required values, strict decimal/scientific numeric tokens (without binary-float precision loss), finite numbers, and non-negative market fields. Thousands separators and digit underscores are rejected rather than guessed.
 - Real calendar-date validation for expiry values in exact `YYYY-MM-DD` format.
 - OHLC consistency.
 - Canonical timestamps, duplicate symbol/timestamp pairs, and non-monotonic time order.
