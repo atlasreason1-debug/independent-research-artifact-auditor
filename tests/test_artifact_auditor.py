@@ -56,6 +56,11 @@ class AuditorTests(unittest.TestCase):
         report = self.audit_rows([row])
         self.assertEqual(sum(x["code"] == "NON_FINITE_VALUE" for x in report["issues"]), 2)
 
+    def test_malformed_decimal_is_reported_without_crashing(self):
+        report = self.audit_rows([valid_row(volume="not-a-number")])
+        self.assertIn("INVALID_NUMERIC_VALUE", self.codes(report))
+        self.assertEqual(report["status"], "INVALID")
+
     def test_negative_volume_is_invalid(self):
         report = self.audit_rows([valid_row(volume="-1")])
         self.assertIn("NEGATIVE_VALUE", self.codes(report))
