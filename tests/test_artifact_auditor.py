@@ -138,6 +138,13 @@ class AuditorTests(unittest.TestCase):
         row = valid_row() + ["EXTRA"]
         report = self.audit_rows([row])
         self.assertIn("EXTRA_FIELDS", self.codes(report))
+    def test_extra_fields_do_not_hide_invalid_known_values(self):
+        row = valid_row(volume="-3", expiry="2025-02-29") + ["EXTRA"]
+        report = self.audit_rows([row])
+        self.assertIn("EXTRA_FIELDS", self.codes(report))
+        self.assertIn("NEGATIVE_VALUE", self.codes(report))
+        self.assertIn("INVALID_EXPIRY", self.codes(report))
+        self.assertEqual(report["status"], "INVALID")
 
     def test_duplicate_header_is_invalid(self):
         headers = list(REQUIRED_COLUMNS) + ["close"]
