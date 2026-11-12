@@ -85,7 +85,7 @@ class LargeDatasetReliabilityTests(unittest.TestCase):
             for minute in range(row_count):
                 writer.writerow(make_row(
                     "NIFTY_ZERO_TEST",
-                    f"2026-07-17 09:{minute % 60:02d}:{minute // 60:02d}",
+                    (datetime(2026, 7, 17, 9, 0) + timedelta(minutes=minute)).strftime("%Y-%m-%d %H:%M:%S"),
                     volume="0",
                     oi="0",
                 ))
