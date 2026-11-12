@@ -31,6 +31,21 @@ python -m unittest discover -s tests -v
 
 Exit code: `0` when the report status is VALID, `1` when INVALID.
 
+## Large-dataset reliability checks
+
+The test suite includes generated stress and failure-mode cases:
+- 20,200 rows across 200 symbols, including one repeated timestamp per symbol.
+- Exact row-count and duplicate-detection assertions at that scale.
+- Repeated zero-volume and zero-open-interest findings to expose report growth.
+- Malformed CSV input at end-of-file, verifying that rows parsed before the parser error remain counted and the file is marked invalid.
+
+A recent GitHub Actions observation on the 20,200-row case reported:
+- Python 3.10: 2.18 seconds, 6.17 MiB tracemalloc peak.
+- Python 3.11: 7.42 seconds, 6.14 MiB tracemalloc peak.
+- Python 3.12: 4.77 seconds, 5.87 MiB tracemalloc peak.
+
+These are single-run CI observations, not performance guarantees. Tracemalloc measures traced Python allocations, not total process RSS. The current report still emits two informational issue objects for every row where both volume and open interest are zero; report size therefore grows linearly with such rows. Million-row throughput, total process memory, and bounded-report behavior are not yet verified.
+
 ## Important limitations
 
 This validator checks internal consistency only. It does not establish that data is authentic, complete against an exchange, correctly adjusted, free from look-ahead bias, or suitable for a profitable strategy. It does not validate backtest execution logic or certify vendor licensing.
