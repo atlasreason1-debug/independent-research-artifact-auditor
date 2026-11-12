@@ -143,7 +143,7 @@ def audit_csv(path: str | Path, *, single_contract_file: bool = True) -> dict[st
                     counts["rows_read"] += 1
                     if len(row_values) > len(columns):
                         issues.append(_issue("error", "EXTRA_FIELDS", f"Row has {len(row_values) - len(columns)} extra field(s).", row=physical_row))
-                        continue
+                        row_values = row_values[:len(columns)]
                     if len(row_values) < len(columns):
                         issues.append(_issue("error", "SHORT_ROW", f"Row has {len(columns) - len(row_values)} missing field(s).", row=physical_row))
                         row_values = row_values + [""] * (len(columns) - len(row_values))
