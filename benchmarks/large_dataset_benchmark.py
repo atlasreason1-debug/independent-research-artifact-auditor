@@ -144,7 +144,15 @@ def worker(mode: str, path: Path) -> dict[str, object]:
 
 def run_isolated(mode: str, path: Path) -> dict[str, object]:
     command = [sys.executable, str(Path(__file__).resolve()), "--worker", mode, str(path)]
-    result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True, check=False)
+    env = os.environ.copy()
+    existing_pythonpath = env.get("PYTHONPATH")
+    env["PYTHONPATH"] = (
+        str(ROOT) if not existing_pythonpath
+        else str(ROOT) + os.pathsep + existing_pythonpath
+    )
+    result = subprocess.run(
+        command, cwd=ROOT, env=env, capture_output=True, text=True, check=False
+    )
     if result.returncode:
         raise RuntimeError(
             f"{mode} worker failed (exit {result.returncode}): {result.stderr[-4000:]}"
