@@ -44,9 +44,9 @@ def generate_csv(path: Path, rows: int, symbols: int, informational: bool) -> No
         for index in range(rows):
             symbol_id = index % symbols
             sequence = index // symbols
-            # Inject one duplicate timestamp per 10,000 rows, without
-            # changing the number of physical rows.
-            timestamp_sequence = sequence - 1 if index and index % 10000 == 0 else sequence
+            # Inject a duplicate at every fifth observation for each symbol.
+            # This exercises duplicate detection across all configured symbols.
+            timestamp_sequence = sequence - 1 if sequence > 0 and sequence % 5 == 0 else sequence
             timestamp = (start + timedelta(seconds=timestamp_sequence)).strftime(
                 "%Y-%m-%d %H:%M:%S"
             )
