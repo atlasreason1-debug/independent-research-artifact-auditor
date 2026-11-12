@@ -232,12 +232,8 @@ def audit_csv(path: str | Path, *, single_contract_file: bool = True) -> dict[st
                                     row=physical_row, column="expiry",
                                 ))
                                 reported_symbol_metadata.add(key)
-                        if values["strike"]:
-                            try:
-                                metadata_strike = Decimal(values["strike"])
-                            except InvalidOperation:
-                                metadata_strike = None
-                            if metadata_strike is not None and metadata_strike.is_finite() and metadata_strike != symbol_strike:
+                        metadata_strike = numeric.get("strike")
+                        if metadata_strike is not None and metadata_strike != symbol_strike:
                                 key = (values["symbol"], "strike", values["strike"])
                                 if key not in reported_symbol_metadata:
                                     issues.append(_issue(
