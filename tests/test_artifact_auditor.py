@@ -1,5 +1,7 @@
 import csv
 import json
+import subprocess
+import sys
 import tempfile
 import unittest
 from pathlib import Path
@@ -241,6 +243,32 @@ class AuditorTests(unittest.TestCase):
     def test_report_is_json_serializable(self):
         report = self.audit_rows([valid_row()])
         json.dumps(report)
+    def test_cli_valid_input_returns_zero_and_prints_json(self):
+        path = write_csv([valid_row()])
+        try:
+            result = subprocess.run(
+                [sys.executable, "-m", "src.artifact_auditor", str(path)],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(json.loads(result.stdout)["status"], "VALID")
+        finally:
+            path.unlink(missing_ok=True)
+
+    def test_cli_invalid_input_returns_one_and_writes_json_report(self):
+        path = write_csv([valid_row(volume="-1")])
+        report_path = path.with_suffix(".report.json")
+        try:
+            result = subprocess.run(
+                [sys.executable, "-m", "src.artifact_auditor", str(path), "--json", str(report_path)],
+                capture_output=True, text=True, check=False,
+            )
+            self.assertEqual(result.returncode, 1, result.stderr)
+            self.assertEqual(json.loads(result.stdout)["status"], "INVALID")
+            self.assertEqual(json.loads(report_path.read_text(encoding="utf-8"))["status"], "INVALID")
+        finally:
+            path.unlink(missing_ok=True)
+            report_path.unlink(missing_ok=True)
 
 
 if __name__ == "__main__":
