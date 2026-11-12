@@ -126,6 +126,7 @@ def audit_csv(path: str | Path, *, single_contract_file: bool = True) -> dict[st
             index = {name: columns.index(name) for name in columns}
             seen: set[tuple[str, str]] = set()
             max_timestamp_seen: dict[str, datetime] = {}
+            reported_symbol_metadata: set[tuple[str, str, str]] = set()
             contract_values: dict[str, set[str]] = {name: set() for name in CONTRACT_COLUMNS}
             first_contract: dict[str, str] | None = None
 
@@ -203,28 +204,37 @@ def audit_csv(path: str | Path, *, single_contract_file: bool = True) -> dict[st
                     if parsed_symbol is not None:
                         symbol_expiry, symbol_strike, symbol_side = parsed_symbol
                         if values["expiry"] and values["expiry"] != symbol_expiry:
-                            issues.append(_issue(
-                                "warning", "CONTRACT_SYMBOL_EXPIRY_MISMATCH",
-                                f"Symbol encodes expiry {symbol_expiry}, but metadata expiry is '{values['expiry']}'.",
-                                row=physical_row, column="expiry",
-                            ))
+                            key = (values["symbol"], "expiry", values["expiry"])
+                            if key not in reported_symbol_metadata:
+                                issues.append(_issue(
+                                    "warning", "CONTRACT_SYMBOL_EXPIRY_MISMATCH",
+                                    f"Symbol encodes expiry {symbol_expiry}, but metadata expiry is '{values['expiry']}'.",
+                                    row=physical_row, column="expiry",
+                                ))
+                                reported_symbol_metadata.add(key)
                         if values["strike"]:
                             try:
                                 metadata_strike = Decimal(values["strike"])
                             except InvalidOperation:
                                 metadata_strike = None
                             if metadata_strike is not None and metadata_strike.is_finite() and metadata_strike != symbol_strike:
-                                issues.append(_issue(
-                                    "warning", "CONTRACT_SYMBOL_STRIKE_MISMATCH",
-                                    f"Symbol encodes strike {symbol_strike}, but metadata strike is '{values['strike']}'.",
-                                    row=physical_row, column="strike",
-                                ))
+                                key = (values["symbol"], "strike", values["strike"])
+                                if key not in reported_symbol_metadata:
+                                    issues.append(_issue(
+                                        "warning", "CONTRACT_SYMBOL_STRIKE_MISMATCH",
+                                        f"Symbol encodes strike {symbol_strike}, but metadata strike is '{values['strike']}'.",
+                                        row=physical_row, column="strike",
+                                    ))
+                                    reported_symbol_metadata.add(key)
                         if values["side"] and values["side"].upper() != symbol_side:
-                            issues.append(_issue(
-                                "warning", "CONTRACT_SYMBOL_SIDE_MISMATCH",
-                                f"Symbol encodes side {symbol_side}, but metadata side is '{values['side']}'.",
-                                row=physical_row, column="side",
-                            ))
+                            key = (values["symbol"], "side", values["side"])
+                            if key not in reported_symbol_metadata:
+                                issues.append(_issue(
+                                    "warning", "CONTRACT_SYMBOL_SIDE_MISMATCH",
+                                    f"Symbol encodes side {symbol_side}, but metadata side is '{values['side']}'.",
+                                    row=physical_row, column="side",
+                                ))
+                                reported_symbol_metadata.add(key)
 
                     if parsed_timestamp is not None and values["symbol"]:
                         key = (values["symbol"], timestamp_text)
