@@ -11,6 +11,7 @@ The v0.3 validator checks:
 - Canonical timestamps, duplicate symbol/timestamp pairs, and non-monotonic time order.
 - Option side and contract-type labels.
 - Optional single-contract consistency warnings.
+- Recognized compact option symbols in the observed `{name}{DDMMMYY}{strike}{CE|PE}` shape are cross-checked against expiry, strike, and side metadata; mismatches are warnings, not automatic invalidations. Unknown symbol formats are not guessed.
 
 Zero volume and zero open interest are informational, not automatic failures. In particular, zero open interest can mean the provider has not reported it.
 
