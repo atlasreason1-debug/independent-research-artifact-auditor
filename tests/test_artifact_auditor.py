@@ -199,6 +199,11 @@ class AuditorTests(unittest.TestCase):
         report = self.audit_rows([row])
         self.assertNotIn("CONTRACT_SYMBOL_STRIKE_MISMATCH", self.codes(report))
         self.assertNotIn("CONTRACT_SYMBOL_EXPIRY_MISMATCH", self.codes(report))
+    def test_invalid_strike_is_not_reparsed_for_symbol_cross_check(self):
+        row = valid_row(symbol="NIFTY23JUN2214000CE", strike="14_000", expiry="2022-06-23")
+        report = self.audit_rows([row])
+        self.assertIn("INVALID_NUMERIC_VALUE", self.codes(report))
+        self.assertNotIn("CONTRACT_SYMBOL_STRIKE_MISMATCH", self.codes(report))
 
     def test_unknown_symbol_format_is_not_guessed(self):
         row = valid_row(symbol="NIFTY-OPTION-CALL-24000")
