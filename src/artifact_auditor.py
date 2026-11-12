@@ -45,8 +45,8 @@ def _parse_compact_option_symbol(name: str, symbol: str) -> tuple[str, Decimal, 
     if not name or not symbol:
         return None
     pattern = re.compile(
-        rf"^{re.escape(name)}(?P<expiry>\\d{{2}}[A-Z]{{3}}\\d{{2}})"
-        rf"(?P<strike>\\d+(?:\\.\\d+)?)(?P<side>CE|PE)$",
+        rf"^{re.escape(name)}(?P<expiry>\d{{2}}[A-Z]{{3}}\d{{2}})"
+        rf"(?P<strike>\d+(?:\.\d+)?)(?P<side>CE|PE)$",
         re.IGNORECASE,
     )
     match = pattern.fullmatch(symbol)
