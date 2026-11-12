@@ -99,6 +99,35 @@ class AuditorTests(unittest.TestCase):
         report = self.audit_rows([row], headers=headers)
         self.assertIn("MISSING_REQUIRED_COLUMN", self.codes(report))
 
+    def test_compact_symbol_metadata_mismatches_are_warnings(self):
+        row = valid_row(
+            symbol="NIFTY23JUN2214000CE",
+            strike="24000",
+            expiry="2027-12-28",
+        )
+        report = self.audit_rows([row])
+        codes = self.codes(report)
+        self.assertIn("CONTRACT_SYMBOL_STRIKE_MISMATCH", codes)
+        self.assertIn("CONTRACT_SYMBOL_EXPIRY_MISMATCH", codes)
+        self.assertEqual(report["status"], "VALID")
+        self.assertEqual(report["counts"]["warnings"], 2)
+
+    def test_compact_symbol_matching_metadata_has_no_mismatch_warning(self):
+        row = valid_row(
+            symbol="NIFTY23JUN2214000CE",
+            strike="14000",
+            expiry="2022-06-23",
+        )
+        report = self.audit_rows([row])
+        self.assertNotIn("CONTRACT_SYMBOL_STRIKE_MISMATCH", self.codes(report))
+        self.assertNotIn("CONTRACT_SYMBOL_EXPIRY_MISMATCH", self.codes(report))
+
+    def test_unknown_symbol_format_is_not_guessed(self):
+        row = valid_row(symbol="NIFTY-OPTION-CALL-24000")
+        report = self.audit_rows([row])
+        self.assertNotIn("CONTRACT_SYMBOL_STRIKE_MISMATCH", self.codes(report))
+        self.assertNotIn("CONTRACT_SYMBOL_EXPIRY_MISMATCH", self.codes(report))
+
     def test_multi_contract_mode_does_not_warn_on_contract_variation(self):
         first = valid_row()
         second = valid_row(symbol="NIFTY_OTHER", strike="25000", datetime="2026-07-17 09:22:00")
