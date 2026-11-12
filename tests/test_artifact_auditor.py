@@ -112,6 +112,23 @@ class AuditorTests(unittest.TestCase):
         self.assertEqual(report["status"], "VALID")
         self.assertEqual(report["counts"]["warnings"], 2)
 
+    def test_symbol_metadata_mismatch_is_reported_once_per_contract_value(self):
+        rows = [
+            valid_row(symbol="NIFTY23JUN2214000CE", strike="24000", expiry="2027-12-28"),
+            valid_row(symbol="NIFTY23JUN2214000CE", strike="24000", expiry="2027-12-28",
+                      datetime="2026-07-17 09:22:00"),
+        ]
+        report = self.audit_rows(rows)
+        self.assertEqual(report["counts"]["warnings"], 2)
+        self.assertEqual(
+            sum(x["code"] == "CONTRACT_SYMBOL_STRIKE_MISMATCH" for x in report["issues"]),
+            1,
+        )
+        self.assertEqual(
+            sum(x["code"] == "CONTRACT_SYMBOL_EXPIRY_MISMATCH" for x in report["issues"]),
+            1,
+        )
+
     def test_compact_symbol_matching_metadata_has_no_mismatch_warning(self):
         row = valid_row(
             symbol="NIFTY23JUN2214000CE",
