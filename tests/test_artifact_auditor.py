@@ -147,6 +147,17 @@ class AuditorTests(unittest.TestCase):
         self.assertIn("NON_MONOTONIC_TIMESTAMP", self.codes(report))
         self.assertEqual(report["status"], "VALID")
 
+    def test_timestamp_order_uses_maximum_seen_not_only_previous_row(self):
+        rows = [
+            valid_row(datetime="2026-07-17 10:00:00"),
+            valid_row(datetime="2026-07-17 09:00:00"),
+            valid_row(datetime="2026-07-17 09:30:00"),
+        ]
+        report = self.audit_rows(rows)
+        warnings = [x for x in report["issues"] if x["code"] == "NON_MONOTONIC_TIMESTAMP"]
+        self.assertEqual(len(warnings), 2)
+        self.assertEqual(report["status"], "VALID")
+
     def test_header_only_file_is_invalid(self):
         report = self.audit_rows([])
         self.assertIn("NO_DATA_ROWS", self.codes(report))
