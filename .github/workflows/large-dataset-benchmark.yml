@@ -1,0 +1,51 @@
+name: large-dataset-benchmark
+
+on:
+  workflow_dispatch:
+    inputs:
+      rows:
+        description: "Synthetic CSV rows (100000 or 1000000)"
+        required: true
+        default: "100000"
+        type: choice
+        options:
+          - "100000"
+          - "1000000"
+      symbols:
+        description: "Distinct symbols (1, 100, 10000)"
+        required: true
+        default: "100"
+        type: choice
+        options:
+          - "1"
+          - "100"
+          - "10000"
+      informational:
+        description: "Set volume and OI to zero to expose INFO report growth"
+        required: true
+        default: false
+        type: boolean
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: feat/validator-v0-3
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run isolated benchmark
+        run: |
+          args=(--rows "${{ inputs.rows }}" --symbols "${{ inputs.symbols }}")
+          if [ "${{ inputs.informational }}" = "true" ]; then
+            args+=(--informational)
+          fi
+          python benchmarks/large_dataset_benchmark.py "${args[@]}" | tee benchmark-results.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: large-dataset-benchmark-results
+          path: benchmark-results.json
+          if-no-files-found: error
