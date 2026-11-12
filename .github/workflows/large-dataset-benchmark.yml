@@ -54,6 +54,7 @@ jobs:
           python-version: "3.12"
       - name: Run isolated benchmark
         run: |
+          set -o pipefail
           args=(--rows "${{ matrix.rows }}" --symbols "${{ matrix.symbols }}")
           if [ "${{ matrix.informational }}" = "true" ]; then
             args+=(--informational)
