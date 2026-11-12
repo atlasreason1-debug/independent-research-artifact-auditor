@@ -1,0 +1,131 @@
+import csv
+import json
+import tempfile
+import unittest
+from pathlib import Path
+
+from src.artifact_auditor import REQUIRED_COLUMNS, audit_csv
+
+
+def write_csv(rows, headers=None):
+    tmp = tempfile.NamedTemporaryFile("w", suffix=".csv", newline="", encoding="utf-8", delete=False)
+    writer = csv.writer(tmp)
+    writer.writerow(headers or REQUIRED_COLUMNS)
+    writer.writerows(rows)
+    tmp.close()
+    return Path(tmp.name)
+
+
+def valid_row(**overrides):
+    row = {
+        "datetime": "2026-07-17 09:21:00",
+        "open": "100", "high": "105", "low": "95", "close": "102",
+        "volume": "0", "oi": "0", "name": "NIFTY", "symbol": "NIFTY_TEST",
+        "strike": "24000", "expiry": "2027-12-28", "contract_type": "OPT", "side": "CE",
+    }
+    row.update(overrides)
+    return [row[name] for name in REQUIRED_COLUMNS]
+
+
+class AuditorTests(unittest.TestCase):
+    def audit_rows(self, rows, headers=None, **kwargs):
+        path = write_csv(rows, headers)
+        try:
+            return audit_csv(path, **kwargs)
+        finally:
+            path.unlink(missing_ok=True)
+
+    def codes(self, report):
+        return {issue["code"] for issue in report["issues"]}
+
+    def test_valid_row_with_zero_volume_and_oi_is_valid(self):
+        report = self.audit_rows([valid_row()])
+        self.assertEqual(report["status"], "VALID")
+        self.assertIn("ZERO_VOLUME", self.codes(report))
+        self.assertIn("ZERO_OPEN_INTEREST", self.codes(report))
+
+    def test_empty_required_numeric_value_has_no_duplicate_numeric_error(self):
+        row = valid_row()
+        row[REQUIRED_COLUMNS.index("close")] = ""
+        report = self.audit_rows([row])
+        matching = [x for x in report["issues"] if x.get("column") == "close"]
+        self.assertEqual([x["code"] for x in matching], ["EMPTY_REQUIRED_VALUE"])
+
+    def test_nan_and_infinity_are_non_finite(self):
+        row = valid_row(open="NaN", close="inf")
+        report = self.audit_rows([row])
+        self.assertEqual(sum(x["code"] == "NON_FINITE_VALUE" for x in report["issues"]), 2)
+
+    def test_negative_volume_is_invalid(self):
+        report = self.audit_rows([valid_row(volume="-1")])
+        self.assertIn("NEGATIVE_VALUE", self.codes(report))
+
+    def test_ohlc_high_boundary_is_valid(self):
+        report = self.audit_rows([valid_row(open="10", high="10", low="10", close="10")])
+        self.assertEqual(report["status"], "VALID")
+
+    def test_invalid_high_and_low_are_reported(self):
+        report = self.audit_rows([valid_row(open="11", high="10", low="12", close="11")])
+        self.assertIn("INVALID_OHLC_HIGH", self.codes(report))
+        self.assertIn("INVALID_OHLC_LOW", self.codes(report))
+
+    def test_duplicate_timestamp_same_symbol_is_invalid(self):
+        report = self.audit_rows([valid_row(), valid_row()])
+        self.assertIn("DUPLICATE_CONTRACT_TIMESTAMP", self.codes(report))
+
+    def test_timestamp_must_be_canonical(self):
+        report = self.audit_rows([valid_row(datetime="2026-7-17 9:21:00")])
+        self.assertIn("INVALID_TIMESTAMP", self.codes(report))
+
+    def test_short_row_is_reported(self):
+        row = valid_row()[:-1]
+        report = self.audit_rows([row])
+        self.assertIn("SHORT_ROW", self.codes(report))
+
+    def test_extra_field_is_reported(self):
+        row = valid_row() + ["EXTRA"]
+        report = self.audit_rows([row])
+        self.assertIn("EXTRA_FIELDS", self.codes(report))
+
+    def test_duplicate_header_is_invalid(self):
+        headers = list(REQUIRED_COLUMNS) + ["close"]
+        row = valid_row() + ["102"]
+        report = self.audit_rows([row], headers=headers)
+        self.assertIn("DUPLICATE_HEADER", self.codes(report))
+
+    def test_missing_required_header_is_invalid(self):
+        headers = [x for x in REQUIRED_COLUMNS if x != "oi"]
+        row = [v for i, v in enumerate(valid_row()) if REQUIRED_COLUMNS[i] != "oi"]
+        report = self.audit_rows([row], headers=headers)
+        self.assertIn("MISSING_REQUIRED_COLUMN", self.codes(report))
+
+    def test_multi_contract_mode_does_not_warn_on_contract_variation(self):
+        first = valid_row()
+        second = valid_row(symbol="NIFTY_OTHER", strike="25000", datetime="2026-07-17 09:22:00")
+        report = self.audit_rows([first, second], single_contract_file=False)
+        self.assertNotIn("CONTRACT_FIELD_VARIATION", self.codes(report))
+
+    def test_single_contract_mode_warns_on_contract_variation(self):
+        first = valid_row()
+        second = valid_row(symbol="NIFTY_OTHER", strike="25000", datetime="2026-07-17 09:22:00")
+        report = self.audit_rows([first, second])
+        self.assertIn("CONTRACT_FIELD_VARIATION", self.codes(report))
+
+    def test_non_monotonic_timestamp_is_warning(self):
+        first = valid_row(datetime="2026-07-17 09:22:00")
+        second = valid_row(datetime="2026-07-17 09:21:00")
+        report = self.audit_rows([first, second])
+        self.assertIn("NON_MONOTONIC_TIMESTAMP", self.codes(report))
+        self.assertEqual(report["status"], "VALID")
+
+    def test_header_only_file_is_invalid(self):
+        report = self.audit_rows([])
+        self.assertIn("NO_DATA_ROWS", self.codes(report))
+
+    def test_report_is_json_serializable(self):
+        report = self.audit_rows([valid_row()])
+        json.dumps(report)
+
+
+if __name__ == "__main__":
+    unittest.main()
