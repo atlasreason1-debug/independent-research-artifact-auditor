@@ -23,6 +23,11 @@ NUMERIC_COLUMNS = ("open", "high", "low", "close", "volume", "oi", "strike")
 NON_NEGATIVE_COLUMNS = ("open", "high", "low", "close", "volume", "oi", "strike")
 CONTRACT_COLUMNS = ("name", "symbol", "strike", "expiry", "contract_type", "side")
 TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
+NUMERIC_PATTERN = re.compile(
+    r"^(?:[+-]?(?:(?:[0-9]+(?:\.[0-9]*)?)|(?:\.[0-9]+))(?:[eE][+-]?[0-9]+)?"
+    r"|[+-]?(?:s?nan|inf(?:inity)?))$",
+    re.IGNORECASE,
+)
 
 
 def _issue(severity: str, code: str, message: str, row: int | None = None,
@@ -152,6 +157,9 @@ def audit_csv(path: str | Path, *, single_contract_file: bool = True) -> dict[st
                     for name in NUMERIC_COLUMNS:
                         raw = values[name]
                         if not raw:
+                            continue
+                        if NUMERIC_PATTERN.fullmatch(raw) is None:
+                            issues.append(_issue("error", "INVALID_NUMERIC_VALUE", f"'{raw}' is not a valid number.", row=physical_row, column=name))
                             continue
                         try:
                             number = Decimal(raw)
