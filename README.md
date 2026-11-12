@@ -16,6 +16,8 @@ Zero volume and zero open interest are informational, not automatic failures. In
 
 ## Run
 
+A clearly labeled synthetic example is included at `examples/sample_options.csv`. It is test data only, not a licensed vendor feed or evidence of real market conditions.
+
 Requires Python 3.10+; runtime uses only the Python standard library.
 
 ```bash
