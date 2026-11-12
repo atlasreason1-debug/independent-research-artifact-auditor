@@ -8,10 +8,9 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import math
 import re
 from collections import Counter
-from datetime import datetime
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
@@ -149,21 +148,21 @@ def audit_csv(path: str | Path, *, single_contract_file: bool = True) -> dict[st
                     for name in empty_fields:
                         issues.append(_issue("error", "EMPTY_REQUIRED_VALUE", f"Required value is empty in '{name}'.", row=physical_row, column=name))
 
-                    numeric: dict[str, float] = {}
+                    numeric: dict[str, Decimal] = {}
                     for name in NUMERIC_COLUMNS:
                         raw = values[name]
                         if not raw:
                             continue
                         try:
-                            number = float(raw)
+                            number = Decimal(raw)
                         except ValueError:
                             issues.append(_issue("error", "INVALID_NUMERIC_VALUE", f"'{raw}' is not a valid number.", row=physical_row, column=name))
                             continue
-                        if not math.isfinite(number):
+                        if not number.is_finite():
                             issues.append(_issue("error", "NON_FINITE_VALUE", f"'{raw}' is not finite.", row=physical_row, column=name))
                             continue
                         numeric[name] = number
-                        if name in NON_NEGATIVE_COLUMNS and number < 0:
+                        if name in NON_NEGATIVE_COLUMNS and number < Decimal(0):
                             issues.append(_issue("error", "NEGATIVE_VALUE", f"'{name}' must be non-negative.", row=physical_row, column=name))
 
                     if all(name in numeric for name in ("open", "high", "low", "close")):
@@ -182,6 +181,19 @@ def audit_csv(path: str | Path, *, single_contract_file: bool = True) -> dict[st
                                 raise ValueError("timestamp is not in canonical YYYY-MM-DD HH:MM:SS format")
                         except ValueError:
                             issues.append(_issue("error", "INVALID_TIMESTAMP", f"Timestamp '{timestamp_text}' must use YYYY-MM-DD HH:MM:SS.", row=physical_row, column="datetime"))
+
+                    expiry_text = values["expiry"]
+                    if expiry_text:
+                        try:
+                            parsed_expiry = date.fromisoformat(expiry_text)
+                            if parsed_expiry.isoformat() != expiry_text:
+                                raise ValueError("expiry is not canonical YYYY-MM-DD format")
+                        except ValueError:
+                            issues.append(_issue(
+                                "error", "INVALID_EXPIRY",
+                                f"Expiry '{expiry_text}' must be a real calendar date in YYYY-MM-DD format.",
+                                row=physical_row, column="expiry",
+                            ))
 
                     contract = {name: values[name] for name in CONTRACT_COLUMNS}
                     for name, value in contract.items():
