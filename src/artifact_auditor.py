@@ -66,21 +66,38 @@ def _parse_compact_option_symbol(name: str, symbol: str) -> tuple[str, Decimal, 
     return expiry, strike, match.group("side").upper()
 
 
-def audit_csv(path: str | Path, *, single_contract_file: bool = True) -> dict[str, Any]:
+def audit_csv(
+    path: str | Path,
+    *,
+    single_contract_file: bool = True,
+    max_issues: int | None = None,
+) -> dict[str, Any]:
     """Audit a CSV file and return a JSON-serializable report.
 
     Row numbers in issues are physical CSV line numbers (header is line 1).
     Empty required cells receive one EMPTY_REQUIRED_VALUE issue and are not
     redundantly parsed as numeric/timestamp failures.
     """
+    if max_issues is not None and max_issues < 0:
+        raise ValueError("max_issues must be non-negative or None")
+
     file_path = Path(path)
     issues: list[dict[str, Any]] = []
+    issue_counts = Counter()
+    severity_counts = Counter()
     counts = {"rows_read": 0, "errors": 0, "warnings": 0, "info": 0}
 
+    def record(item: dict[str, Any]) -> None:
+        issue_counts[item["code"]] += 1
+        severity_counts[item["severity"]] += 1
+        if max_issues is None or len(issues) < max_issues:
+            issues.append(item)
+
     def finish(status: str, columns: list[str] | None = None) -> dict[str, Any]:
-        counts["errors"] = sum(x["severity"] == "error" for x in issues)
-        counts["warnings"] = sum(x["severity"] == "warning" for x in issues)
-        counts["info"] = sum(x["severity"] == "info" for x in issues)
+        counts["errors"] = severity_counts["error"]
+        counts["warnings"] = severity_counts["warning"]
+        counts["info"] = severity_counts["info"]
+        total_issues = sum(issue_counts.values())
         return {
             "file": str(file_path),
             "status": status,
@@ -88,6 +105,8 @@ def audit_csv(path: str | Path, *, single_contract_file: bool = True) -> dict[st
             "columns": columns or [],
             "counts": counts,
             "issues": issues,
+            "issue_counts_by_code": dict(sorted(issue_counts.items())),
+            "issues_truncated": total_issues > len(issues),
         }
 
     if not file_path.exists():
@@ -279,7 +298,7 @@ def audit_csv(path: str | Path, *, single_contract_file: bool = True) -> dict[st
                     if "__VARIATION__" in values_seen:
                         issues.append(_issue("warning", "CONTRACT_FIELD_VARIATION", f"'{name}' varies in a file configured as single-contract.", column=name))
 
-            return finish("INVALID" if any(x["severity"] == "error" for x in issues) else "VALID", columns)
+            return finish("INVALID" if severity_counts["error"] else "VALID", columns)
     except (OSError, UnicodeError) as exc:
         issues.append(_issue("error", "FILE_READ_ERROR", f"Could not read file: {exc}"))
         return finish("INVALID")
@@ -290,9 +309,17 @@ def main() -> int:
     parser.add_argument("csv_file", help="Path to input CSV")
     parser.add_argument("--json", dest="json_path", help="Write JSON report to this path")
     parser.add_argument("--multi-contract", action="store_true", help="Disable single-contract field-variation warnings")
+    parser.add_argument(
+        "--max-issues", type=int, default=None,
+        help="Limit detailed issue samples while preserving exact issue counts.",
+    )
     args = parser.parse_args()
 
-    report = audit_csv(args.csv_file, single_contract_file=not args.multi_contract)
+    report = audit_csv(
+        args.csv_file,
+        single_contract_file=not args.multi_contract,
+        max_issues=args.max_issues,
+    )
     rendered = json.dumps(report, indent=2, ensure_ascii=False)
     if args.json_path:
         Path(args.json_path).write_text(rendered + "\n", encoding="utf-8")
