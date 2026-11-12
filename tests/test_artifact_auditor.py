@@ -60,6 +60,17 @@ class AuditorTests(unittest.TestCase):
         report = self.audit_rows([valid_row(volume="not-a-number")])
         self.assertIn("INVALID_NUMERIC_VALUE", self.codes(report))
         self.assertEqual(report["status"], "INVALID")
+    def test_numeric_separators_are_not_silently_accepted(self):
+        for value in ("1_000", "1,000"):
+            with self.subTest(value=value):
+                report = self.audit_rows([valid_row(volume=value)])
+                self.assertIn("INVALID_NUMERIC_VALUE", self.codes(report))
+                self.assertEqual(report["status"], "INVALID")
+
+    def test_scientific_notation_is_accepted(self):
+        report = self.audit_rows([valid_row(open="+1e2", high="1.05E2", low=".95e2", close="102.0")])
+        self.assertEqual(report["status"], "VALID")
+        self.assertNotIn("INVALID_NUMERIC_VALUE", self.codes(report))
 
     def test_negative_volume_is_invalid(self):
         report = self.audit_rows([valid_row(volume="-1")])
