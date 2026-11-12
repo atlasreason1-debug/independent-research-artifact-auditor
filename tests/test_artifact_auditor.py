@@ -60,6 +60,42 @@ class AuditorTests(unittest.TestCase):
         report = self.audit_rows([valid_row(volume="-1")])
         self.assertIn("NEGATIVE_VALUE", self.codes(report))
 
+    def test_decimal_underflow_is_not_misclassified_as_zero(self):
+        report = self.audit_rows([valid_row(
+            open="1e-1000", high="2e-1000", low="5e-1001",
+            close="15e-1001", volume="1e-1000",
+        )])
+        self.assertEqual(report["status"], "VALID")
+        self.assertNotIn("ZERO_VOLUME", self.codes(report))
+
+    def test_decimal_precision_is_preserved_for_ohlc_comparisons(self):
+        report = self.audit_rows([valid_row(
+            open="0.3000000000000000000001",
+            high="0.3",
+            low="0.2",
+            close="0.25",
+        )])
+        self.assertIn("INVALID_OHLC_HIGH", self.codes(report))
+
+    def test_very_large_finite_decimal_is_not_float_overflow(self):
+        report = self.audit_rows([valid_row(
+            open="1e10000", high="2e10000", low="5e9999", close="15e9999",
+        )])
+        self.assertEqual(report["status"], "VALID")
+        self.assertNotIn("NON_FINITE_VALUE", self.codes(report))
+
+    def test_impossible_expiry_date_is_invalid(self):
+        report = self.audit_rows([valid_row(expiry="2025-02-29")])
+        self.assertIn("INVALID_EXPIRY", self.codes(report))
+
+    def test_noncanonical_expiry_date_is_invalid(self):
+        report = self.audit_rows([valid_row(expiry="2024-2-9")])
+        self.assertIn("INVALID_EXPIRY", self.codes(report))
+
+    def test_valid_leap_day_expiry_is_accepted(self):
+        report = self.audit_rows([valid_row(expiry="2024-02-29")])
+        self.assertNotIn("INVALID_EXPIRY", self.codes(report))
+
     def test_ohlc_high_boundary_is_valid(self):
         report = self.audit_rows([valid_row(open="10", high="10", low="10", close="10")])
         self.assertEqual(report["status"], "VALID")
