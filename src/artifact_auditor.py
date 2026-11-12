@@ -155,7 +155,7 @@ def audit_csv(path: str | Path, *, single_contract_file: bool = True) -> dict[st
                             continue
                         try:
                             number = Decimal(raw)
-                        except ValueError:
+                        except (InvalidOperation, ValueError):
                             issues.append(_issue("error", "INVALID_NUMERIC_VALUE", f"'{raw}' is not a valid number.", row=physical_row, column=name))
                             continue
                         if not number.is_finite():
