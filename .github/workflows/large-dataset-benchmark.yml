@@ -1,6 +1,11 @@
 name: large-dataset-benchmark
 
 on:
+  push:
+    branches: ["feat/validator-v0-3"]
+    paths:
+      - "benchmarks/**"
+      - ".github/workflows/large-dataset-benchmark.yml"
   workflow_dispatch:
     inputs:
       rows:
@@ -38,9 +43,13 @@ jobs:
         with:
           python-version: "3.12"
       - name: Run isolated benchmark
+        env:
+          ROWS: ${{ inputs.rows || '100000' }}
+          SYMBOLS: ${{ inputs.symbols || '100' }}
+          INFORMATIONAL: ${{ inputs.informational || false }}
         run: |
-          args=(--rows "${{ inputs.rows }}" --symbols "${{ inputs.symbols }}")
-          if [ "${{ inputs.informational }}" = "true" ]; then
+          args=(--rows "$ROWS" --symbols "$SYMBOLS")
+          if [ "$INFORMATIONAL" = "true" ]; then
             args+=(--informational)
           fi
           python benchmarks/large_dataset_benchmark.py "${args[@]}" | tee benchmark-results.json
