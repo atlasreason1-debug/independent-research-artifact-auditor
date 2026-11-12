@@ -276,5 +276,34 @@ class AuditorTests(unittest.TestCase):
             report_path.unlink(missing_ok=True)
 
 
+    def test_issue_sample_limit_preserves_exact_counts_and_status(self):
+        rows = [
+            valid_row(volume="0", oi="0", datetime="2026-07-17 09:21:00"),
+            valid_row(volume="-1", oi="0", datetime="2026-07-17 09:22:00"),
+        ]
+        report = self.audit_rows(rows, max_issues=2)
+
+        self.assertEqual(len(report["issues"]), 2)
+        self.assertTrue(report["issues_truncated"])
+        self.assertEqual(report["counts"]["errors"], 1)
+        self.assertEqual(report["counts"]["info"], 3)
+        self.assertEqual(report["issue_counts_by_code"]["ZERO_VOLUME"], 1)
+        self.assertEqual(report["issue_counts_by_code"]["ZERO_OPEN_INTEREST"], 2)
+        self.assertEqual(report["status"], "INVALID")
+
+    def test_zero_issue_sample_limit_still_reports_invalid_status(self):
+        report = self.audit_rows([valid_row(volume="-1")], max_issues=0)
+
+        self.assertEqual(report["issues"], [])
+        self.assertTrue(report["issues_truncated"])
+        self.assertEqual(report["counts"]["errors"], 1)
+        self.assertEqual(report["status"], "INVALID")
+
+    def test_negative_issue_sample_limit_is_rejected(self):
+        with self.assertRaises(ValueError):
+            self.audit_rows([valid_row()], max_issues=-1)
+
+
+
 if __name__ == "__main__":
     unittest.main()
