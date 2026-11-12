@@ -31,20 +31,26 @@ python -m unittest discover -s tests -v
 
 Exit code: `0` when the report status is VALID, `1` when INVALID.
 
-## Large-dataset reliability checks
+## Large-dataset benchmark (experimental)
 
-The test suite includes generated stress and failure-mode cases:
-- 20,200 rows across 200 symbols, including one repeated timestamp per symbol.
-- Exact row-count and duplicate-detection assertions at that scale.
-- Repeated zero-volume and zero-open-interest findings to expose report growth.
-- Malformed CSV input at end-of-file, verifying that rows parsed before the parser error remain counted and the file is marked invalid.
+A reproducible benchmark harness is available:
 
-A recent GitHub Actions observation on the 20,200-row case reported:
-- Python 3.10: 2.18 seconds, 6.17 MiB tracemalloc peak.
-- Python 3.11: 7.42 seconds, 6.14 MiB tracemalloc peak.
-- Python 3.12: 4.77 seconds, 5.87 MiB tracemalloc peak.
+```bash
+python benchmarks/large_dataset_benchmark.py --rows 100000 --symbols 100
+python benchmarks/large_dataset_benchmark.py --rows 1000000 --symbols 10000
+python benchmarks/large_dataset_benchmark.py --rows 1000000 --symbols 10000 --informational
+```
 
-These are single-run CI observations, not performance guarantees. Tracemalloc measures traced Python allocations, not total process RSS. The current report still emits two informational issue objects for every row where both volume and open interest are zero; report size therefore grows linearly with such rows. Million-row throughput, total process memory, and bounded-report behavior are not yet verified.
+It generates a synthetic CSV, then runs three isolated processes:
+1. The current end-to-end `audit_csv` path, recording elapsed time, peak process RSS, parsed row count, issue count, and serialized JSON report size.
+2. A duplicate-key-only baseline using an in-memory Python set.
+3. A duplicate-key-only baseline using a temporary SQLite database with a composite primary key.
+
+The duplicate-key comparison is an isolated storage experiment, **not** a production implementation or a claim that SQLite can be substituted without design and correctness work. The informational scenario sets both volume and OI to zero on every row to expose issue-report growth.
+
+A manual GitHub Actions workflow, **large-dataset-benchmark**, can run 100,000 or 1,000,000 rows with 1, 100, or 10,000 symbols. It uploads the JSON measurements as a workflow artifact. Run it on the `feat/validator-v0-3` branch. Linux peak RSS is reported using `resource.getrusage`; it includes Python process memory, unlike `tracemalloc` which tracks Python allocations only.
+
+**No 100K or 1M benchmark result is currently certified.** The harness must be run and its artifact inspected before making scalability claims or selecting a memory-control patch. Benchmark values are machine- and workload-dependent, not service-level guarantees.
 
 ## Important limitations
 
