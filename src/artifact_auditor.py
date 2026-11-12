@@ -9,8 +9,10 @@ import argparse
 import csv
 import json
 import math
+import re
 from collections import Counter
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
@@ -32,6 +34,32 @@ def _issue(severity: str, code: str, message: str, row: int | None = None,
     if column is not None:
         item["column"] = column
     return item
+
+
+def _parse_compact_option_symbol(name: str, symbol: str) -> tuple[str, Decimal, str] | None:
+    """Parse only the observed {name}{DDMMMYY}{strike}{CE|PE} symbol shape.
+
+    Unknown symbol conventions are deliberately ignored rather than guessed.
+    The returned expiry is ISO YYYY-MM-DD.
+    """
+    if not name or not symbol:
+        return None
+    pattern = re.compile(
+        rf"^{re.escape(name)}(?P<expiry>\\d{{2}}[A-Z]{{3}}\\d{{2}})"
+        rf"(?P<strike>\\d+(?:\\.\\d+)?)(?P<side>CE|PE)$",
+        re.IGNORECASE,
+    )
+    match = pattern.fullmatch(symbol)
+    if match is None:
+        return None
+    try:
+        expiry = datetime.strptime(match.group("expiry").upper(), "%d%b%y").date().isoformat()
+        strike = Decimal(match.group("strike"))
+    except (ValueError, InvalidOperation):
+        return None
+    if not strike.is_finite():
+        return None
+    return expiry, strike, match.group("side").upper()
 
 
 def audit_csv(path: str | Path, *, single_contract_file: bool = True) -> dict[str, Any]:
@@ -170,6 +198,33 @@ def audit_csv(path: str | Path, *, single_contract_file: bool = True) -> dict[st
                         issues.append(_issue("error", "INVALID_SIDE", "side must be CE or PE.", row=physical_row, column="side"))
                     if values["contract_type"] and values["contract_type"] not in {"OPT", "OPTIONS"}:
                         issues.append(_issue("warning", "UNRECOGNIZED_CONTRACT_TYPE", "contract_type is not one of the recognized option labels OPT/OPTIONS.", row=physical_row, column="contract_type"))
+
+                    parsed_symbol = _parse_compact_option_symbol(values["name"], values["symbol"])
+                    if parsed_symbol is not None:
+                        symbol_expiry, symbol_strike, symbol_side = parsed_symbol
+                        if values["expiry"] and values["expiry"] != symbol_expiry:
+                            issues.append(_issue(
+                                "warning", "CONTRACT_SYMBOL_EXPIRY_MISMATCH",
+                                f"Symbol encodes expiry {symbol_expiry}, but metadata expiry is '{values['expiry']}'.",
+                                row=physical_row, column="expiry",
+                            ))
+                        if values["strike"]:
+                            try:
+                                metadata_strike = Decimal(values["strike"])
+                            except InvalidOperation:
+                                metadata_strike = None
+                            if metadata_strike is not None and metadata_strike.is_finite() and metadata_strike != symbol_strike:
+                                issues.append(_issue(
+                                    "warning", "CONTRACT_SYMBOL_STRIKE_MISMATCH",
+                                    f"Symbol encodes strike {symbol_strike}, but metadata strike is '{values['strike']}'.",
+                                    row=physical_row, column="strike",
+                                ))
+                        if values["side"] and values["side"].upper() != symbol_side:
+                            issues.append(_issue(
+                                "warning", "CONTRACT_SYMBOL_SIDE_MISMATCH",
+                                f"Symbol encodes side {symbol_side}, but metadata side is '{values['side']}'.",
+                                row=physical_row, column="side",
+                            ))
 
                     if parsed_timestamp is not None and values["symbol"]:
                         key = (values["symbol"], timestamp_text)
