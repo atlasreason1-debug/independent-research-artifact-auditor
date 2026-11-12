@@ -125,7 +125,7 @@ def audit_csv(path: str | Path, *, single_contract_file: bool = True) -> dict[st
 
             index = {name: columns.index(name) for name in columns}
             seen: set[tuple[str, str]] = set()
-            previous_timestamp: dict[str, datetime] = {}
+            max_timestamp_seen: dict[str, datetime] = {}
             contract_values: dict[str, set[str]] = {name: set() for name in CONTRACT_COLUMNS}
             first_contract: dict[str, str] | None = None
 
@@ -231,10 +231,11 @@ def audit_csv(path: str | Path, *, single_contract_file: bool = True) -> dict[st
                         if key in seen:
                             issues.append(_issue("error", "DUPLICATE_CONTRACT_TIMESTAMP", "Duplicate timestamp for the same symbol.", row=physical_row, column="datetime"))
                         seen.add(key)
-                        prior = previous_timestamp.get(values["symbol"])
-                        if prior is not None and parsed_timestamp < prior:
-                            issues.append(_issue("warning", "NON_MONOTONIC_TIMESTAMP", "Timestamp is earlier than the previous row for this symbol.", row=physical_row, column="datetime"))
-                        previous_timestamp[values["symbol"]] = parsed_timestamp
+                        max_seen = max_timestamp_seen.get(values["symbol"])
+                        if max_seen is not None and parsed_timestamp < max_seen:
+                            issues.append(_issue("warning", "NON_MONOTONIC_TIMESTAMP", "Timestamp is earlier than a timestamp already seen for this symbol.", row=physical_row, column="datetime"))
+                        if max_seen is None or parsed_timestamp > max_seen:
+                            max_timestamp_seen[values["symbol"]] = parsed_timestamp
 
                     if numeric.get("volume") == 0:
                         issues.append(_issue("info", "ZERO_VOLUME", "Zero volume is informational and is not automatically invalid.", row=physical_row, column="volume"))
