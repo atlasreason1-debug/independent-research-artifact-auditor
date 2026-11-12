@@ -7,6 +7,7 @@ import csv
 import tempfile
 import time
 import tracemalloc
+from datetime import datetime, timedelta
 import unittest
 from pathlib import Path
 
@@ -43,7 +44,7 @@ class LargeDatasetReliabilityTests(unittest.TestCase):
             for symbol_index in range(symbol_count):
                 symbol = f"NIFTY_TEST_{symbol_index:04d}"
                 for minute in range(timestamps_per_symbol):
-                    timestamp = f"2026-07-17 09:{minute:02d}:00"
+                    timestamp = (datetime(2026, 7, 17, 9, 0) + timedelta(minutes=minute)).strftime("%Y-%m-%d %H:%M:%S")
                     writer.writerow(make_row(symbol, timestamp))
                 # Repeat the first timestamp after later timestamps for this symbol.
                 writer.writerow(make_row(symbol, "2026-07-17 09:00:00"))
