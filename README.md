@@ -62,4 +62,4 @@ Expiry input is expected in the exact format `YYYY-MM-DD` and must be a real cal
 
 ## Report contract
 
-The CLI prints a JSON object containing `file`, `status`, `mode`, `columns`, `counts`, and `issues`. Each issue has a severity and stable code, with row/column context where applicable.
+The CLI prints a JSON object containing `file`, `status`, `mode`, `columns`, `counts`, `issues`, `issue_counts_by_code`, `issues_truncated`, and `ohlc_availability`. Each issue has a severity and stable code, with row/column context where applicable. `ohlc_availability` reports complete, partial, and fully missing OHLC rows plus missing-cell counts by column.
