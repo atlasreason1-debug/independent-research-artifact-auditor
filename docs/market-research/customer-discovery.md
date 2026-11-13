@@ -81,6 +81,18 @@ These are qualitative signals from public discussions, not verified customer int
 
 **Lead-handling rule:** public usernames are research leads only. No one has been contacted, and no user data has been requested. Do not present these people as prospects who agreed to participate.
 
+### Highest-priority public discovery leads
+
+| Public handle | Observed problem / signal | Fit with current product | Discovery angle |
+|---|---|---|---|
+| **tttlv** — r/algotrading | In 2026, described paying for SPX options data and experiencing stale/lagging data under fast market conditions; explicitly said they would pay for quality and latency. | Options domain fit, but latency measurement is outside current validator scope. | Ask whether they also audit historical option files, detect stale records, or compare feeds before research. |
+| **OriginalNewton** — r/algotrading | In 2024, described duplicate flat-file rows and incorrect split-adjusted history, requiring repeated sanity checks and debugging. | Strong data-audit pain, but equity/corporate-action scope is not yet supported by the current options schema. | Ask which checks they built, how much time they spend, and whether a reusable pre-research audit would help. |
+| **Emotional-Match-7190** — r/algotrading | Curated a long list of backtest data sources and explicitly wanted a way to measure which datasets are high quality. | Potential researcher/design-partner fit; buying authority and actual data incidents are unknown. | Ask how they compare providers and what evidence would make a quality report trustworthy. |
+
+These are public community discovery leads, not qualified sales leads. No contact has been made.
+
+**Willingness-to-pay nuance:** tttlv's statement is direct evidence of willingness to pay for good options-data quality and latency, and they reported already paying a significant amount for a provider. It is not evidence that they would pay for our independent audit product. The audit-specific WTP remains unverified.
+
 ## 5. Discovery questions
 
 Do not pitch first. Ask about the user's last real incident and current workflow.
