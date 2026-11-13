@@ -8,11 +8,12 @@ from __future__ import annotations
 import csv
 import hashlib
 import json
+import subprocess
 import sys
 import tempfile
 import urllib.request
 import zipfile
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -77,6 +78,42 @@ def extract_verified_session(archive_path: Path, destination: Path) -> dict[str,
         "sha256": actual_sha256,
         "bytes": byte_count,
     }
+
+
+def run_vendor_verifier(archive_path: Path, extraction_root: Path) -> dict[str, Any]:
+    with zipfile.ZipFile(archive_path) as archive:
+        names = archive.namelist()
+        for name in names:
+            path = PurePosixPath(name)
+            if path.is_absolute() or ".." in path.parts:
+                raise RuntimeError(f"Unsafe path in vendor archive: {name}")
+        verifier_names = [name for name in names if name.endswith("/verify.py") or name == "verify.py"]
+        if len(verifier_names) != 1:
+            raise RuntimeError(f"Expected one vendor verify.py; found {len(verifier_names)}")
+        archive.extractall(extraction_root)
+        verifier_path = extraction_root / verifier_names[0]
+        working_directory = verifier_path.parent
+        command = [
+            sys.executable,
+            str(verifier_path),
+            "--complete",
+            "day_by_date",
+        ]
+        completed = subprocess.run(
+            command,
+            cwd=working_directory,
+            capture_output=True,
+            text=True,
+            timeout=600,
+            check=False,
+        )
+        return {
+            "command": "python verify.py --complete day_by_date",
+            "return_code": completed.returncode,
+            "passed": completed.returncode == 0,
+            "stdout_tail": completed.stdout[-4000:],
+            "stderr_tail": completed.stderr[-2000:],
+        }
 
 
 def normalize_session(source_path: Path, full_path: Path, traded_path: Path) -> dict[str, Any]:
@@ -219,14 +256,18 @@ def main() -> None:
         root = Path(temporary)
         archive_path = root / "options_sample.zip"
         source_path = root / "2022-07-01_options.csv"
+        vendor_extract = root / "vendor_archive"
+        vendor_extract.mkdir()
         full_path = root / "normalized_all_rows.csv"
         traded_path = root / "normalized_rows_with_ohlc.csv"
 
         download_sample(archive_path)
         source_metadata = extract_verified_session(archive_path, source_path)
+        vendor_verifier = run_vendor_verifier(archive_path, vendor_extract)
         normalization = normalize_session(source_path, full_path, traded_path)
 
         results = {
+            "vendor_verifier": vendor_verifier,
             "source": "HistoricalData.net free options sample",
             "source_url": SAMPLE_URL,
             "sample_session": "2022-07-01",
