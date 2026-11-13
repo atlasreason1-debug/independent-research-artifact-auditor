@@ -42,14 +42,15 @@ python benchmarks/large_dataset_benchmark.py --rows 1000000 --symbols 10000
 python benchmarks/large_dataset_benchmark.py --rows 1000000 --symbols 10000 --informational
 ```
 
-It generates a synthetic CSV, then runs five isolated processes:
+It generates a synthetic CSV, then runs six isolated processes:
 1. The end-to-end `audit_csv` path, both with the default in-memory duplicate tracker and with bounded issue samples plus a temporary SQLite duplicate tracker.
 2. A duplicate-key-only baseline using an in-memory Python set.
 3. A duplicate-key-only baseline using a temporary SQLite database with a composite primary key.
+4. A per-symbol latest-timestamp dictionary baseline to isolate memory that scales with symbol cardinality.
 
 The bounded SQLite audit mode exercises the actual validator with disk-backed duplicate tracking. It trades some runtime for lower memory and cleans up its temporary database. The duplicate-key-only modes remain isolated baselines, not end-to-end validator measurements. The default remains in-memory for backward-compatible speed; SQLite is opt-in. The informational scenario sets both volume and OI to zero on every row to expose issue-report growth.
 
-A manual GitHub Actions workflow, **large-dataset-benchmark**, can run 100,000 or 1,000,000 rows with 1, 100, or 10,000 symbols. It uploads the JSON measurements as a workflow artifact. Run it on the `feat/validator-v0-3` branch. Linux peak RSS is reported using `resource.getrusage`; it includes Python process memory, unlike `tracemalloc` which tracks Python allocations only.
+A manual GitHub Actions workflow, **large-dataset-benchmark**, can run 100,000 or 1,000,000 rows with 1, 100, 10,000, or 100,000 symbols. It uploads the JSON measurements as a workflow artifact. Run it on the `feat/validator-v0-3` branch. Linux peak RSS is reported using `resource.getrusage`; it includes Python process memory, unlike `tracemalloc` which tracks Python allocations only.
 
 Benchmark measurements are synthetic and machine-dependent. The issue-sample cap and SQLite duplicate tracker are opt-in; benchmark artifacts and exact counts must be inspected before making production scalability claims. Benchmark values are machine- and workload-dependent, not service-level guarantees.
 
