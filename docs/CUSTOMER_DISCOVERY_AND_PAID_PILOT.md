@@ -145,22 +145,22 @@ I'd especially value hearing what checks you already trust and where they fail.
 ## 7. Latest technical verification
 
 **Verified code commit:** `8de604431800c7a7ec068875d3e51f1105442293`  
-**Evidence record commit:** `4bc96f77b3451d94091a661141e1a6836ad9e814`  
-**PR #1:** open and unmerged. All measurements below are bounded to the listed runs and samples.
+**Latest evidence/documentation commit:** `a16e6b9a9e4fcbedee5c5b103c45ecc2e5c530eb`  
+**PR #1:** open and unmerged. The code commit is unchanged by the two later documentation-only commits. The latest CI runs below were triggered against the latest PR head.
 
 ### Automated tests
-- GitHub Actions run 43378852507: **54 tests passed** on Python 3.10, 3.11 and 3.12.
+- GitHub Actions run 43379513188: **54 tests passed** on Python 3.10, 3.11 and 3.12.
 - No live-trading or strategy-profitability behavior is included.
 
 ### Real market-data smoke tests
 - HistoricalData.net sample, 2022-07-01: 34,898 option rows; 14,433 rows with complete OHLC; 20,465 with incomplete OHLC; 691 activity-related warnings; **0 errors**. The provider's verifier passed all 127 files in its published sample archive. This confirms the auditor can preserve and report source-specific OHLC availability; it does not certify every provider observation as economically correct.
 - Official NSE F&O UDiFF sample, 2026-11-11: 41,664 option rows; 16,498 positive-volume rows; 25,166 zero-volume rows. The transaction-aware diagnostic found **0 zero-volume rows with positive transaction counts** in this sample. Full-file audit and active-row audit both returned **0 errors**. The source file and normalized diagnostics were temporary; raw vendor data was not retained.
-- Run 43378852745: both real-data jobs succeeded.
+- Latest run 43379513346: both real-data jobs succeeded.
 
 ### Large-dataset benchmark
-- GitHub Actions run 43378852584: **9/9 scenarios succeeded** on 100K and 1M synthetic rows, with symbol cardinalities of 1, 100, 10K and 100K, plus informational-heavy cases.
-- At 1M rows / 100K symbols: bounded in-memory audit peaked at 233.7 MB RSS; bounded SQLite audit peaked at 35.8 MB RSS. Runtime was 22.2s versus 25.2s respectively; both retained exact issue counts and capped the report sample at 1,000 findings.
-- At 1M rows / 100 symbols with informational-heavy findings: the full report was 344.74 MB and peaked at 1,352.8 MB RSS; bounded SQLite mode retained exact counts with a 0.16 MB report and 20.6 MB peak RSS.
+- Latest GitHub Actions run 43379513218: **9/9 scenarios succeeded** on 100K and 1M synthetic rows, with symbol cardinalities of 1, 100, 10K and 100K, plus informational-heavy cases.
+- At 1M rows / 100K symbols: bounded in-memory audit peaked at 233.6 MB RSS; bounded SQLite audit peaked at 35.9 MB RSS. Runtime was 18.4s versus 20.6s respectively; both retained exact issue counts and capped the report sample at 1,000 findings.
+- At 1M rows / 100 symbols with informational-heavy findings: the unbounded report was 344.74 MB and peaked at 1,352.5 MB RSS; bounded in-memory mode peaked at 205.7 MB; bounded SQLite mode retained exact counts in a 0.16 MB report at 20.9 MB peak RSS.
 - These are synthetic, machine-dependent measurements, not production service-level guarantees. SQLite is opt-in and trades runtime for lower peak memory.
 
 ## 8. Evidence ledger and decision gates
