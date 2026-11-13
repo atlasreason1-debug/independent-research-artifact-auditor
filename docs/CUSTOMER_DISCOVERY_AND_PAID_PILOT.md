@@ -142,21 +142,41 @@ I'm looking for a few researchers who have recently onboarded or reconciled hist
 
 I'd especially value hearing what checks you already trust and where they fail.
 
-## 7. Evidence ledger and decision gates
+## 7. Latest technical verification
+
+**Verified branch head:** `8de604431800c7a7ec068875d3e51f1105442293`  
+**PR #1:** open and unmerged. All measurements below are bounded to the listed runs and samples.
+
+### Automated tests
+- GitHub Actions run 43378852507: **54 tests passed** on Python 3.10, 3.11 and 3.12.
+- No live-trading or strategy-profitability behavior is included.
+
+### Real market-data smoke tests
+- HistoricalData.net sample, 2022-07-01: 34,898 option rows; 14,433 rows with complete OHLC; 20,465 with incomplete OHLC; 691 activity-related warnings; **0 errors**. The provider's verifier passed all 127 files in its published sample archive. This confirms the auditor can preserve and report source-specific OHLC availability; it does not certify every provider observation as economically correct.
+- Official NSE F&O UDiFF sample, 2026-11-11: 41,664 option rows; 16,498 positive-volume rows; 25,166 zero-volume rows. The transaction-aware diagnostic found **0 zero-volume rows with positive transaction counts** in this sample. Full-file audit and active-row audit both returned **0 errors**. The source file and normalized diagnostics were temporary; raw vendor data was not retained.
+- Run 43378852745: both real-data jobs succeeded.
+
+### Large-dataset benchmark
+- GitHub Actions run 43378852584: **9/9 scenarios succeeded** on 100K and 1M synthetic rows, with symbol cardinalities of 1, 100, 10K and 100K, plus informational-heavy cases.
+- At 1M rows / 100K symbols: bounded in-memory audit peaked at 233.7 MB RSS; bounded SQLite audit peaked at 35.8 MB RSS. Runtime was 22.2s versus 25.2s respectively; both retained exact issue counts and capped the report sample at 1,000 findings.
+- At 1M rows / 100 symbols with informational-heavy findings: the full report was 344.74 MB and peaked at 1,352.8 MB RSS; bounded SQLite mode retained exact counts with a 0.16 MB report and 20.6 MB peak RSS.
+- These are synthetic, machine-dependent measurements, not production service-level guarantees. SQLite is opt-in and trades runtime for lower peak memory.
+
+## 8. Evidence ledger and decision gates
 
 | Question | Current evidence | Status |
 |---|---|---|
 | Is data-quality pain real? | Industry surveys and public user discussions | Supported at category level |
 | Are there direct competitors? | Nexus and vendor-specific validation/reconciliation | Yes |
 | Is there a narrow wedge? | Local preflight artifact audit is plausible | Hypothesis |
+| Is the current technical baseline reproducibly tested? | 54 tests across Python 3.10–3.12; both real-data smoke jobs; all 9 benchmark scenarios passed at the verified branch head | Verified for the listed commit and samples; not a production certification |
 | Has a real target user agreed to share a dataset? | No verified agreement | Not verified |
 | Has anyone agreed to a paid pilot? | No | Not verified |
 | Has any payment occurred? | No | No |
 
 **Next gates**
-1. Complete real-data verifier comparison and expose transaction/activity counts for rows with missing OHLC.
-2. Finish the 1M-row / 100K-symbol benchmark and current CI.
-3. Conduct at least 5 discovery interviews across Priority A and B.
-4. Obtain at least 2 redacted sample datasets with explicit permission.
-5. Send the fixed USD 250 offer to qualified prospects and record accept / reject / counter-offer.
-6. Do not expand the product scope until a real dataset and buyer workflow reveal a repeated unmet need.
+1. Begin customer discovery with at least 5 interviews across Priority A and B; Exarctus remains an uncontacted public lead until the Founder sends the prepared message and receives a reply.
+2. Obtain at least 2 redacted sample datasets with explicit permission; do not accept confidential data until handling and deletion controls are agreed.
+3. Send the fixed USD 99 / USD 250 pilot hypotheses only to qualified prospects and record accept / reject / counter-offer.
+4. Count only a paid invoice/deposit or signed purchase order as strong willingness-to-pay evidence.
+5. Do not expand product scope until real customer datasets and buyer workflows reveal a repeated unmet need.
