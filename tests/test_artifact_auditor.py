@@ -81,14 +81,14 @@ class AuditorTests(unittest.TestCase):
         self.assertNotIn("EMPTY_REQUIRED_VALUE", self.codes(report))
 
     def test_zero_volume_no_trade_row_skips_ohlc_consistency(self):
-        headers = REQUIRED_COLUMNS + ["transactions"]
+        headers = REQUIRED_COLUMNS + ("transactions",)
         row = valid_row(open="0", high="0", low="0", close="100", volume="0") + ["0"]
         report = self.audit_rows([row], headers=headers)
         self.assertEqual(report["status"], "VALID")
         self.assertNotIn("INVALID_OHLC_HIGH", self.codes(report))
 
     def test_zero_volume_with_positive_transactions_still_checks_ohlc(self):
-        headers = REQUIRED_COLUMNS + ["transactions"]
+        headers = REQUIRED_COLUMNS + ("transactions",)
         row = valid_row(open="0", high="0", low="0", close="100", volume="0") + ["1"]
         report = self.audit_rows([row], headers=headers)
         self.assertEqual(report["status"], "INVALID")
