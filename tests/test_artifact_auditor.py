@@ -133,6 +133,20 @@ class AuditorTests(unittest.TestCase):
                 self.assertIn("DUPLICATE_CONTRACT_TIMESTAMP", self.codes(report))
                 self.assertEqual(report["status"], "INVALID")
 
+    def test_sqlite_and_memory_stores_produce_identical_reports(self):
+        rows = [
+            valid_row(datetime="2026-07-17 09:22:00"),
+            valid_row(datetime="2026-07-17 09:21:00", volume="-1"),
+            valid_row(datetime="2026-07-17 09:22:00"),
+        ]
+        path = write_csv(rows)
+        try:
+            memory_report = audit_csv(path, duplicate_store="memory")
+            sqlite_report = audit_csv(path, duplicate_store="sqlite")
+            self.assertEqual(sqlite_report, memory_report)
+        finally:
+            path.unlink(missing_ok=True)
+
     def test_sqlite_tracker_cleans_temporary_directory_when_initialization_fails(self):
         temporary_directory = mock.Mock()
         temporary_directory.name = "/tmp/artifact-auditor-test"
