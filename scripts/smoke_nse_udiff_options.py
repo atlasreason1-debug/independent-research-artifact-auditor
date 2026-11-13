@@ -5,6 +5,7 @@ import csv
 import hashlib
 import io
 import json
+import sys
 import tempfile
 import urllib.request
 import zipfile
@@ -12,6 +13,10 @@ from collections import Counter
 from datetime import datetime
 from pathlib import Path
 from typing import Any
+
+ROOT = Path(__file__).resolve().parents[1]
+if str(ROOT) not in sys.path:
+    sys.path.insert(0, str(ROOT))
 
 from src.artifact_auditor import audit_csv
 
