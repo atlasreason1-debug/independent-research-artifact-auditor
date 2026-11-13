@@ -21,7 +21,9 @@ REQUIRED_COLUMNS = (
     "datetime", "open", "high", "low", "close", "volume", "oi",
     "name", "symbol", "strike", "expiry", "contract_type", "side",
 )
+OHLC_COLUMNS = ("open", "high", "low", "close")
 NUMERIC_COLUMNS = ("open", "high", "low", "close", "volume", "oi", "strike")
+OPTIONAL_NUMERIC_COLUMNS = ("transactions", "multileg_volume")
 NON_NEGATIVE_COLUMNS = ("open", "high", "low", "close", "volume", "oi", "strike")
 CONTRACT_COLUMNS = ("name", "symbol", "strike", "expiry", "contract_type", "side")
 TIMESTAMP_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -207,7 +209,8 @@ def _audit_csv_impl(
 
     Row numbers in issues are physical CSV line numbers (header is line 1).
     Empty required cells receive one EMPTY_REQUIRED_VALUE issue and are not
-    redundantly parsed as numeric/timestamp failures.
+    redundantly parsed as numeric/timestamp failures. OHLC values are conditionally
+    available in options data, so their availability is summarized separately.
     """
     if max_issues is not None and max_issues < 0:
         raise ValueError("max_issues must be non-negative or None")
@@ -217,6 +220,10 @@ def _audit_csv_impl(
     issue_counts = Counter()
     severity_counts = Counter()
     counts = {"rows_read": 0, "errors": 0, "warnings": 0, "info": 0}
+    ohlc_rows_complete = 0
+    ohlc_rows_partial = 0
+    ohlc_rows_missing = 0
+    ohlc_missing_cells = Counter()
 
     def record(item: dict[str, Any]) -> None:
         issue_counts[item["code"]] += 1
@@ -238,6 +245,12 @@ def _audit_csv_impl(
             "issues": issues,
             "issue_counts_by_code": dict(sorted(issue_counts.items())),
             "issues_truncated": total_issues > len(issues),
+            "ohlc_availability": {
+                "rows_with_all_fields": ohlc_rows_complete,
+                "rows_with_partial_fields": ohlc_rows_partial,
+                "rows_with_no_fields": ohlc_rows_missing,
+                "missing_cells_by_column": dict(sorted(ohlc_missing_cells.items())),
+            },
         }
 
     if not file_path.exists():
@@ -300,12 +313,27 @@ def _audit_csv_impl(
                         row_values = row_values + [""] * (len(columns) - len(row_values))
 
                     values = {name: row_values[pos].strip() for name, pos in index.items()}
-                    empty_fields = [name for name in REQUIRED_COLUMNS if not values[name]]
+                    missing_ohlc = [name for name in OHLC_COLUMNS if not values[name]]
+                    if not missing_ohlc:
+                        ohlc_rows_complete += 1
+                    elif len(missing_ohlc) == len(OHLC_COLUMNS):
+                        ohlc_rows_missing += 1
+                    else:
+                        ohlc_rows_partial += 1
+                    for name in missing_ohlc:
+                        ohlc_missing_cells[name] += 1
+
+                    empty_fields = [
+                        name for name in REQUIRED_COLUMNS
+                        if name not in OHLC_COLUMNS and not values[name]
+                    ]
                     for name in empty_fields:
                         record(_issue("error", "EMPTY_REQUIRED_VALUE", f"Required value is empty in '{name}'.", row=physical_row, column=name))
 
                     numeric: dict[str, Decimal] = {}
-                    for name in NUMERIC_COLUMNS:
+                    for name in (*NUMERIC_COLUMNS, *OPTIONAL_NUMERIC_COLUMNS):
+                        if name not in values:
+                            continue
                         raw = values[name]
                         if not raw:
                             continue
@@ -324,8 +352,37 @@ def _audit_csv_impl(
                         if name in NON_NEGATIVE_COLUMNS and number < Decimal(0):
                             record(_issue("error", "NEGATIVE_VALUE", f"'{name}' must be non-negative.", row=physical_row, column=name))
 
-                    if all(name in numeric for name in ("open", "high", "low", "close")):
-                        o, h, low, c = (numeric[name] for name in ("open", "high", "low", "close"))
+                    volume_value = numeric.get("volume")
+                    transactions_value = numeric.get("transactions")
+                    has_trade_activity = (
+                        (volume_value is not None and volume_value > 0)
+                        or (transactions_value is not None and transactions_value > 0)
+                    )
+                    if missing_ohlc:
+                        if has_trade_activity:
+                            record(_issue(
+                                "warning",
+                                "OHLC_UNAVAILABLE_WITH_ACTIVITY",
+                                "One or more OHLC values are unavailable while trade activity is reported; this may reflect multi-leg or source-specific semantics and is not automatically invalid.",
+                                row=physical_row,
+                            ))
+                        elif len(missing_ohlc) < len(OHLC_COLUMNS):
+                            record(_issue(
+                                "warning",
+                                "PARTIAL_OHLC_FIELDS",
+                                "Only some OHLC values are available; inspect the source's field-availability rules.",
+                                row=physical_row,
+                            ))
+
+                    no_trade_evidence = (
+                        volume_value == 0
+                        and (transactions_value is None or transactions_value == 0)
+                    )
+                    if (
+                        not no_trade_evidence
+                        and all(name in numeric for name in OHLC_COLUMNS)
+                    ):
+                        o, h, low, c = (numeric[name] for name in OHLC_COLUMNS)
                         if h < max(o, low, c):
                             record(_issue("error", "INVALID_OHLC_HIGH", "high must be greater than or equal to open, low, and close.", row=physical_row, column="high"))
                         if low > min(o, h, c):
