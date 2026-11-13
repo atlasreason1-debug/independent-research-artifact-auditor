@@ -236,6 +236,41 @@ class AuditorTests(unittest.TestCase):
         report = self.audit_rows([row])
         self.assertNotIn("CONTRACT_SYMBOL_STRIKE_MISMATCH", self.codes(report))
         self.assertNotIn("CONTRACT_SYMBOL_EXPIRY_MISMATCH", self.codes(report))
+    def test_nse_monthly_symbol_matches_year_month_and_strike(self):
+        row = valid_row(
+            name="ABFRL",
+            symbol="ABFRL24JUL250PE",
+            strike="250",
+            expiry="2024-07-25",
+            side="PE",
+        )
+        report = self.audit_rows([row])
+        self.assertNotIn("CONTRACT_SYMBOL_STRIKE_MISMATCH", self.codes(report))
+        self.assertNotIn("CONTRACT_SYMBOL_EXPIRY_MISMATCH", self.codes(report))
+
+    def test_nse_monthly_symbol_reports_month_mismatch_without_fake_strike(self):
+        row = valid_row(
+            name="ABFRL",
+            symbol="ABFRL24JUL250PE",
+            strike="250",
+            expiry="2024-08-25",
+            side="PE",
+        )
+        report = self.audit_rows([row])
+        self.assertIn("CONTRACT_SYMBOL_EXPIRY_MISMATCH", self.codes(report))
+        self.assertNotIn("CONTRACT_SYMBOL_STRIKE_MISMATCH", self.codes(report))
+
+    def test_nse_weekly_symbol_matches_year_month_day(self):
+        row = valid_row(
+            symbol="NIFTY25NOV2725000CE",
+            strike="25000",
+            expiry="2025-11-27",
+            side="CE",
+        )
+        report = self.audit_rows([row])
+        self.assertNotIn("CONTRACT_SYMBOL_STRIKE_MISMATCH", self.codes(report))
+        self.assertNotIn("CONTRACT_SYMBOL_EXPIRY_MISMATCH", self.codes(report))
+
     def test_invalid_strike_is_not_reparsed_for_symbol_cross_check(self):
         row = valid_row(symbol="NIFTY23JUN2214000CE", strike="14_000", expiry="2022-06-23")
         report = self.audit_rows([row])
