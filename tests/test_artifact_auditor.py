@@ -4,6 +4,7 @@ import subprocess
 import sys
 import tempfile
 import unittest
+from unittest import mock
 from pathlib import Path
 
 from src.artifact_auditor import REQUIRED_COLUMNS, audit_csv
@@ -131,6 +132,23 @@ class AuditorTests(unittest.TestCase):
                 )
                 self.assertIn("DUPLICATE_CONTRACT_TIMESTAMP", self.codes(report))
                 self.assertEqual(report["status"], "INVALID")
+
+    def test_sqlite_tracker_cleans_temporary_directory_when_initialization_fails(self):
+        temporary_directory = mock.Mock()
+        temporary_directory.name = "/tmp/artifact-auditor-test"
+        with (
+            mock.patch(
+                "src.artifact_auditor.tempfile.TemporaryDirectory",
+                return_value=temporary_directory,
+            ),
+            mock.patch(
+                "src.artifact_auditor.sqlite3.connect",
+                side_effect=OSError("simulated database creation failure"),
+            ),
+        ):
+            with self.assertRaisesRegex(OSError, "simulated database creation failure"):
+                self.audit_rows([valid_row()], duplicate_store="sqlite")
+        temporary_directory.cleanup.assert_called_once()
 
     def test_timestamp_must_be_canonical(self):
         report = self.audit_rows([valid_row(datetime="2026-7-17 9:21:00")])
