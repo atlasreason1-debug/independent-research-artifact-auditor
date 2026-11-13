@@ -41,6 +41,9 @@ jobs:
           - rows: 1000000
             symbols: 10000
             informational: false
+          - rows: 1000000
+            symbols: 100000
+            informational: false
           - rows: 100000
             symbols: 100
             informational: true
