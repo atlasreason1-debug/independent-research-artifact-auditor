@@ -280,7 +280,9 @@ def _audit_csv_impl(
             index = {name: columns.index(name) for name in columns}
             max_timestamp_seen: dict[str, datetime] = {}
             reported_symbol_metadata: set[tuple[str, str, str]] = set()
-            contract_values: dict[str, set[str]] = {name: set() for name in CONTRACT_COLUMNS}
+            contract_values: dict[str, set[str]] = (
+                {name: set() for name in CONTRACT_COLUMNS} if single_contract_file else {}
+            )
             first_contract: dict[str, str] | None = None
 
             try:
@@ -352,17 +354,18 @@ def _audit_csv_impl(
                                 row=physical_row, column="expiry",
                             ))
 
-                    contract = {name: values[name] for name in CONTRACT_COLUMNS}
-                    for name, value in contract.items():
-                        if value:
-                            contract_values[name].add(value)
-                    if first_contract is None:
-                        first_contract = contract
-                    elif single_contract_file:
+                    if single_contract_file:
+                        contract = {name: values[name] for name in CONTRACT_COLUMNS}
                         for name, value in contract.items():
-                            if value and first_contract.get(name) and value != first_contract[name]:
-                                # Report once per field, after all rows are processed.
-                                contract_values[name].add("__VARIATION__")
+                            if value:
+                                contract_values[name].add(value)
+                        if first_contract is None:
+                            first_contract = contract
+                        else:
+                            for name, value in contract.items():
+                                if value and first_contract.get(name) and value != first_contract[name]:
+                                    # Report once per field, after all rows are processed.
+                                    contract_values[name].add("__VARIATION__")
 
                     if values["side"] and values["side"] not in {"CE", "PE"}:
                         record(_issue("error", "INVALID_SIDE", "side must be CE or PE.", row=physical_row, column="side"))
