@@ -28,7 +28,9 @@ jobs:
         with:
           python-version: "3.12"
       - name: Download and audit one verified real options session
-        run: python scripts/smoke_real_options_sample.py | tee real-market-data-results.json
+        run: |
+          set -o pipefail
+          python scripts/smoke_real_options_sample.py | tee real-market-data-results.json
       - uses: actions/upload-artifact@v4
         with:
           name: real-options-market-data-audit
