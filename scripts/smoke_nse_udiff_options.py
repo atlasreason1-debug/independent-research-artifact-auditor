@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import csv
 import hashlib
+from decimal import Decimal, InvalidOperation
 import io
 import json
 import sys
@@ -29,7 +30,7 @@ URLS = (
 NORMALIZED_COLUMNS = (
     "datetime", "open", "high", "low", "close", "volume", "oi",
     "name", "symbol", "strike", "expiry", "contract_type", "side",
-    "source_instrument_type", "source_instrument_id",
+    "source_instrument_type", "source_instrument_id", "source_instrument_name",
 )
 
 
@@ -97,6 +98,7 @@ def compact_audit(path: Path) -> dict[str, Any]:
         "sampled_issues": len(report["issues"]),
         "issues_truncated": report["issues_truncated"],
         "issue_counts_by_code": report["issue_counts_by_code"],
+        "sampled_issue_examples": report["issues"][:12],
     }
 
 
@@ -105,6 +107,7 @@ def main() -> None:
         root = Path(temporary)
         archive_path = root / FILENAME
         normalized_path = root / "normalized_nse_options.csv"
+        traded_path = root / "normalized_nse_options_positive_volume.csv"
         source_url = download_archive(archive_path)
         archive_bytes = archive_path.read_bytes()
         archive_sha256 = hashlib.sha256(archive_bytes).hexdigest()
@@ -150,9 +153,15 @@ def main() -> None:
         positive_volume = 0
         zero_oi = 0
         missing_ohlc = Counter()
-        with normalized_path.open("w", encoding="utf-8", newline="") as handle:
+        invalid_ohlc_examples = []
+        with (
+            normalized_path.open("w", encoding="utf-8", newline="") as handle,
+            traded_path.open("w", encoding="utf-8", newline="") as traded_handle,
+        ):
             writer = csv.DictWriter(handle, fieldnames=NORMALIZED_COLUMNS)
+            traded_writer = csv.DictWriter(traded_handle, fieldnames=NORMALIZED_COLUMNS)
             writer.writeheader()
+            traded_writer.writeheader()
             for row in reader:
                 rows_total += 1
                 trade_date = normalize_date(pick(row, "TradDt", "BizDt"))
@@ -172,9 +181,12 @@ def main() -> None:
                 underlying = pick(row, "TckrSymb", "SYMBOL")
                 expiry = normalize_date(pick(row, "XpryDt", "EXPIRY_DT"))
                 strike = pick(row, "StrkPric", "STRIKE_PR")
-                symbol = pick(row, "FinInstrmNm", "FinInstrmId", "SYMBOL")
-                if not symbol:
-                    symbol = f"{underlying}|{expiry}|{strike}|{side}"
+                instrument_id = pick(row, "FinInstrmId")
+                instrument_name = pick(row, "FinInstrmNm")
+                # FinInstrmNm is a display label, not an OCC-style option symbol.
+                # Use the exchange instrument ID as the canonical duplicate key so
+                # the OCC compact-symbol parser does not misread NSE naming rules.
+                symbol = instrument_id or f"{underlying}|{expiry}|{strike}|{side}"
 
                 values = {
                     "datetime": f"{trade_date} 00:00:00",
@@ -191,7 +203,8 @@ def main() -> None:
                     "contract_type": "OPT",
                     "side": side,
                     "source_instrument_type": instrument_type,
-                    "source_instrument_id": pick(row, "FinInstrmId"),
+                    "source_instrument_id": instrument_id,
+                    "source_instrument_name": instrument_name,
                 }
                 option_rows += 1
                 if values["volume"] == "0":
@@ -203,7 +216,30 @@ def main() -> None:
                 for name in ("open", "high", "low", "close"):
                     if not values[name]:
                         missing_ohlc[name] += 1
+                try:
+                    o, h, low, c = (Decimal(values[name]) for name in ("open", "high", "low", "close"))
+                except (InvalidOperation, ValueError):
+                    o = h = low = c = None
+                if o is not None and h is not None and low is not None and c is not None and h < max(o, low, c):
+                    if len(invalid_ohlc_examples) < 12:
+                        invalid_ohlc_examples.append({
+                            "instrument_id": instrument_id,
+                            "instrument_name": instrument_name,
+                            "underlying": underlying,
+                            "expiry": expiry,
+                            "strike": strike,
+                            "side": side,
+                            "open": values["open"], "high": values["high"],
+                            "low": values["low"], "close": values["close"],
+                            "volume": values["volume"],
+                        })
                 writer.writerow(values)
+                if values["volume"]:
+                    try:
+                        if Decimal(values["volume"]) > 0:
+                            traded_writer.writerow(values)
+                    except InvalidOperation:
+                        pass
 
         if option_rows == 0:
             raise RuntimeError("No CE/PE option rows found in official NSE file")
@@ -227,7 +263,9 @@ def main() -> None:
             "positive_volume_option_rows": positive_volume,
             "zero_open_interest_option_rows": zero_oi,
             "missing_ohlc_cells": dict(missing_ohlc),
+            "invalid_ohlc_high_examples": invalid_ohlc_examples,
             "audit_all_option_rows": compact_audit(normalized_path),
+            "audit_positive_volume_options": compact_audit(traded_path),
             "raw_vendor_data_retained": False,
             "timestamp_note": "00:00:00 is a daily grouping key only; it is not an NSE event timestamp or inferred timezone.",
         }
