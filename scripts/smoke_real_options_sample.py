@@ -84,6 +84,7 @@ def normalize_session(source_path: Path, full_path: Path, traded_path: Path) -> 
     rows_with_complete_ohlc = 0
     missing_ohlc = {name: 0 for name in OHLC_COLUMNS}
     missing_ohlc_patterns: dict[str, int] = {}
+    missing_ohlc_activity_patterns: dict[str, int] = {}
     missing_ohlc_by_volume = {"zero": 0, "positive": 0, "other_or_blank": 0}
     missing_ohlc_by_transactions = {"zero": 0, "positive": 0, "other_or_blank": 0}
     missing_ohlc_by_multileg_volume = {"zero": 0, "positive": 0, "other_or_blank": 0}
@@ -138,6 +139,15 @@ def normalize_session(source_path: Path, full_path: Path, traded_path: Path) -> 
                 return "other_or_blank"
 
             if not has_complete_ohlc:
+                activity_key = (
+                    f"missing={ '|'.join(missing_fields) };"
+                    f"volume={bucket(volume)};"
+                    f"transactions={bucket(transactions)};"
+                    f"multileg_volume={bucket(multileg_volume)}"
+                )
+                missing_ohlc_activity_patterns[activity_key] = (
+                    missing_ohlc_activity_patterns.get(activity_key, 0) + 1
+                )
                 missing_ohlc_by_volume[bucket(volume)] += 1
                 missing_ohlc_by_transactions[bucket(transactions)] += 1
                 missing_ohlc_by_multileg_volume[bucket(multileg_volume)] += 1
@@ -177,6 +187,7 @@ def normalize_session(source_path: Path, full_path: Path, traded_path: Path) -> 
         "rows_without_complete_ohlc": rows_total - rows_with_complete_ohlc,
         "missing_ohlc_cells": missing_ohlc,
         "missing_ohlc_field_patterns": dict(sorted(missing_ohlc_patterns.items())),
+        "missing_ohlc_activity_patterns": dict(sorted(missing_ohlc_activity_patterns.items())),
         "rows_without_complete_ohlc_by_volume": missing_ohlc_by_volume,
         "rows_without_complete_ohlc_by_transactions": missing_ohlc_by_transactions,
         "rows_without_complete_ohlc_by_multileg_volume": missing_ohlc_by_multileg_volume,
