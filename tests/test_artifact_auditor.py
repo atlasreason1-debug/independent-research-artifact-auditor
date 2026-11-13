@@ -123,9 +123,14 @@ class AuditorTests(unittest.TestCase):
         self.assertIn("INVALID_OHLC_HIGH", self.codes(report))
         self.assertIn("INVALID_OHLC_LOW", self.codes(report))
 
-    def test_duplicate_timestamp_same_symbol_is_invalid(self):
-        report = self.audit_rows([valid_row(), valid_row()])
-        self.assertIn("DUPLICATE_CONTRACT_TIMESTAMP", self.codes(report))
+    def test_duplicate_timestamp_same_symbol_is_invalid_for_each_store(self):
+        for duplicate_store in ("memory", "sqlite"):
+            with self.subTest(duplicate_store=duplicate_store):
+                report = self.audit_rows(
+                    [valid_row(), valid_row()], duplicate_store=duplicate_store
+                )
+                self.assertIn("DUPLICATE_CONTRACT_TIMESTAMP", self.codes(report))
+                self.assertEqual(report["status"], "INVALID")
 
     def test_timestamp_must_be_canonical(self):
         report = self.audit_rows([valid_row(datetime="2026-7-17 9:21:00")])
@@ -265,7 +270,7 @@ class AuditorTests(unittest.TestCase):
         report_path = path.with_suffix(".report.json")
         try:
             result = subprocess.run(
-                [sys.executable, "-m", "src.artifact_auditor", str(path), "--json", str(report_path)],
+                [sys.executable, "-m", "src.artifact_auditor", str(path), "--json", str(report_path), "--duplicate-store", "sqlite"],
                 capture_output=True, text=True, check=False,
             )
             self.assertEqual(result.returncode, 1, result.stderr)
