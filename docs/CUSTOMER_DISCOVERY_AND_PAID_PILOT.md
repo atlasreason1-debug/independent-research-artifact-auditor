@@ -144,7 +144,8 @@ I'd especially value hearing what checks you already trust and where they fail.
 
 ## 7. Latest technical verification
 
-**Verified branch head:** `8de604431800c7a7ec068875d3e51f1105442293`  
+**Verified code commit:** `8de604431800c7a7ec068875d3e51f1105442293`  
+**Evidence record commit:** `4bc96f77b3451d94091a661141e1a6836ad9e814`  
 **PR #1:** open and unmerged. All measurements below are bounded to the listed runs and samples.
 
 ### Automated tests
