@@ -149,6 +149,29 @@ def worker_keys(path: Path, strategy: str) -> dict[str, object]:
             os.unlink(db_path)
 
 
+def worker_symbol_state(path: Path) -> dict[str, object]:
+    """Measure the per-symbol latest-timestamp dictionary in isolation."""
+    started = time.perf_counter()
+    max_timestamp_seen: dict[str, str] = {}
+    total = 0
+    with path.open("r", newline="", encoding="utf-8") as handle:
+        reader = csv.DictReader(handle)
+        for row in reader:
+            total += 1
+            symbol = row["symbol"]
+            timestamp = row["datetime"]
+            previous = max_timestamp_seen.get(symbol)
+            if previous is None or timestamp > previous:
+                max_timestamp_seen[symbol] = timestamp
+    return {
+        "mode": "symbol_state_only",
+        "elapsed_seconds": round(time.perf_counter() - started, 3),
+        "peak_rss_bytes": peak_rss_bytes(),
+        "rows_scanned": total,
+        "unique_symbols": len(max_timestamp_seen),
+    }
+
+
 def worker(mode: str, path: Path) -> dict[str, object]:
     if mode == "audit":
         return worker_audit(path)
@@ -158,6 +181,8 @@ def worker(mode: str, path: Path) -> dict[str, object]:
         return worker_audit(path, max_issues=1000, duplicate_store="sqlite")
     if mode in {"ram", "sqlite"}:
         return worker_keys(path, mode)
+    if mode == "symbol_state":
+        return worker_symbol_state(path)
     raise ValueError(f"Unknown worker mode: {mode}")
 
 
@@ -187,7 +212,7 @@ def main() -> int:
         "--informational", action="store_true",
         help="Set volume and OI to zero to measure repeated INFO issue growth.",
     )
-    parser.add_argument("--worker", choices=("audit", "audit_bounded", "audit_bounded_sqlite", "ram", "sqlite"))
+    parser.add_argument("--worker", choices=("audit", "audit_bounded", "audit_bounded_sqlite", "ram", "sqlite", "symbol_state"))
     parser.add_argument("--input", type=Path)
     parser.add_argument("worker_path", nargs="?", type=Path)
     args = parser.parse_args()
@@ -203,7 +228,9 @@ def main() -> int:
         csv_path = Path(directory) / "synthetic.csv"
         generate_csv(csv_path, args.rows, args.symbols, args.informational)
         results = [
-            run_isolated(mode, csv_path) for mode in ("audit", "audit_bounded", "audit_bounded_sqlite", "ram", "sqlite")
+            run_isolated(mode, csv_path) for mode in (
+                "audit", "audit_bounded", "audit_bounded_sqlite", "ram", "sqlite", "symbol_state"
+            )
         ]
         print(json.dumps({
             "dataset": {
