@@ -145,8 +145,8 @@ I'd especially value hearing what checks you already trust and where they fail.
 ## 7. Latest technical verification
 
 **Verified code commit:** `8de604431800c7a7ec068875d3e51f1105442293`  
-**Latest evidence/documentation commit:** `a16e6b9a9e4fcbedee5c5b103c45ecc2e5c530eb`  
-**PR #1:** open and unmerged. The code commit is unchanged by the two later documentation-only commits. The latest CI runs below were triggered against the latest PR head.
+**Evidence ledger:** refreshed on the current PR head.  
+**PR #1:** open and unmerged. The code commit is unchanged by subsequent documentation-only commits. The latest CI runs below were triggered against the latest PR head.
 
 ### Automated tests
 - GitHub Actions run 43379513188: **54 tests passed** on Python 3.10, 3.11 and 3.12.
