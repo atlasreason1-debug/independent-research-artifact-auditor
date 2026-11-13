@@ -17,6 +17,17 @@ class BenchmarkHarnessTests(unittest.TestCase):
         self.assertEqual(result["rows_read"], 6)
         self.assertGreaterEqual(result["issues"], 1)
 
+    def test_isolated_symbol_state_worker_tracks_unique_symbols(self):
+        with tempfile.TemporaryDirectory() as directory:
+            csv_path = Path(directory) / "sample.csv"
+            generate_csv(csv_path, rows=12, symbols=3, informational=False)
+
+            result = run_isolated("symbol_state", csv_path)
+
+        self.assertEqual(result["mode"], "symbol_state_only")
+        self.assertEqual(result["rows_scanned"], 12)
+        self.assertEqual(result["unique_symbols"], 3)
+
     def test_isolated_bounded_sqlite_audit_worker_runs(self):
         with tempfile.TemporaryDirectory() as directory:
             csv_path = Path(directory) / "sample.csv"
