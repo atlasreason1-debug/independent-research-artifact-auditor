@@ -76,6 +76,16 @@ Potential differentiators to test—not yet proven:
 **Trigger:** Repeated one-off parsing, validation and reconciliation work.  
 **Why first:** Potential repeat use or referral channel; requires proof the tool saves billable engineering time.
 
+### Specific public discovery leads (not contacted)
+
+| Public handle | Publicly stated signal | Why interview | Qualification caveat |
+|---|---|---|---|
+| `Exarctus` in r/quant | Asked how to quantify options-data errors (e.g. American-style constraints, bid above ask) and whether contracts are consistently present through time; also described institutional data prices as too high for an individual researcher. | Strongest first interview candidate for independent options-data QA and report usefulness. | Thread is about a year old. No evidence they want this product or have budget for it. https://www.reddit.com/r/quant/comments/1pis41w/historical_options_data_at_openclose/ |
+| `nuclearmeltdown2015` in r/algotrading | Described a historical-vs-paper-feed volume mismatch that materially changed volume-based features; discussed paying for a short-term data option to test a workflow and a price ceiling for a full provider subscription. | Strongest recent workflow interview candidate; can test whether an audit would have shortened diagnosis. | Their follow-up suggests paper-feed subsampling, not necessarily bad historical data. They paid for data access/testing, not for an auditor. https://www.reddit.com/r/algotrading/comments/1u50cwe/data_blues_looking_for_data_source_advice/ |
+| `EliHusky` in r/algotrading | Asked about subtle data corruption and described timestamp drift, duplicate IDs, sequence gaps and timezone-naive bars. | Useful technical interview for edge cases and existing workarounds. | Public discussion does not establish purchasing authority or active need. https://www.reddit.com/r/algotrading/comments/1rzm36t/what_are_some_sneaky_types_of_data_corruption_to/ |
+
+These are public research leads, not confirmed prospects. Do not infer consent to contact or share data from a public post.
+
 ### Candidate discovery channels (not contacted)
 - r/quant and r/options: options research/data-access conversations.
 - r/algotrading and r/Trading: historical/live feed discrepancies and pre-backtest data QA.
