@@ -73,7 +73,7 @@ class AuditorTests(unittest.TestCase):
         self.assertEqual(report["ohlc_availability"]["rows_with_partial_fields"], 1)
 
     def test_ohlc_unavailable_with_volume_is_warning_not_error(self):
-        headers = REQUIRED_COLUMNS + ["transactions"]
+        headers = REQUIRED_COLUMNS + ("transactions",)
         row = valid_row(open="", high="", low="", close="", volume="10") + [""]
         report = self.audit_rows([row], headers=headers)
         self.assertEqual(report["status"], "VALID")
@@ -133,6 +133,7 @@ class AuditorTests(unittest.TestCase):
             high="0.3",
             low="0.2",
             close="0.25",
+            volume="1",
         )])
         self.assertIn("INVALID_OHLC_HIGH", self.codes(report))
 
@@ -160,7 +161,7 @@ class AuditorTests(unittest.TestCase):
         self.assertEqual(report["status"], "VALID")
 
     def test_invalid_high_and_low_are_reported(self):
-        report = self.audit_rows([valid_row(open="11", high="10", low="12", close="11")])
+        report = self.audit_rows([valid_row(open="11", high="10", low="12", close="11", volume="1")])
         self.assertIn("INVALID_OHLC_HIGH", self.codes(report))
         self.assertIn("INVALID_OHLC_LOW", self.codes(report))
 
