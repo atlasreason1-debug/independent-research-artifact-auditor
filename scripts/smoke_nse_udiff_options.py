@@ -138,7 +138,7 @@ def main() -> None:
             "close": ("clspric", "close"),
             "volume": ("ttltradgvol", "contracts"),
             "oi": ("opnintrst", "open_int"),
-            "transactions": ("ttlnbof txsexctd".replace(" ", ""), "transactions", "no_of_trades"),
+            "transactions": ("ttlnboftxsexctd", "transactions", "no_of_trades"),
         }
         missing = [
             logical for logical, aliases in required_groups.items()
