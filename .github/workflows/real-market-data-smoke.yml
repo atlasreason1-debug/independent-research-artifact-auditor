@@ -5,6 +5,7 @@ on:
     branches: ["feat/validator-v0-3"]
     paths:
       - "scripts/smoke_real_options_sample.py"
+      - "scripts/smoke_nse_udiff_options.py"
       - ".github/workflows/real-market-data-smoke.yml"
   pull_request:
     branches: ["main"]
@@ -35,4 +36,23 @@ jobs:
         with:
           name: real-options-market-data-audit
           path: real-market-data-results.json
+          if-no-files-found: error
+  nse-udiff-options:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Download and audit official NSE UDiFF options bhavcopy
+        run: |
+          set -o pipefail
+          python scripts/smoke_nse_udiff_options.py | tee nse-udiff-results.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: nse-udiff-options-audit
+          path: nse-udiff-results.json
           if-no-files-found: error
