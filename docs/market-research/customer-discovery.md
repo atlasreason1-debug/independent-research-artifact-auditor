@@ -66,7 +66,22 @@ Public role evidence:
 - Bridgewater: https://haystackapp.io/jobs/28545d05-2ab0-4dc4-8688-32d02a2b53b1
 - Verition: https://www.wallstreetcareers.com/jobs/641523581-data-sourcing-associate-quant
 
-## 4. Discovery questions
+## 4. Public community pain signals
+
+These are qualitative signals from public discussions, not verified customer interviews:
+
+- In a 2024 r/algotrading thread, a user named **OriginalNewton** described duplicate entries and incorrect stock-split adjustments in a market-data provider's flat files. They said they had to perform repeated sanity checks and debugging to trust historical candles, and that data accuracy was a deal-breaker for serious research. This is a clear pain signal for data validation, but the example is equity data and does not prove demand for our current options-focused validator.
+  - https://www.reddit.com/r/algotrading/comments/1et9k3v/where_do_you_get_your_data_for_backtesting_from/
+- In a 2026 r/algotrading thread, **tttlv** said they were paying a significant amount for SPX options data and observed data lag under fast market conditions, including after opening support tickets. They explicitly said they would pay if data quality and latency were good. This is a strong signal that options-data quality matters and that some users spend on the problem, but their immediate need is real-time latency, which our current CSV auditor does not measure.
+  - https://www.reddit.com/r/algotrading/comments/1rsnwpf/fastest_api_for_spx_options_chain_0dte_nearatm/
+- A 2021 r/algotrading discussion asked whether IBKR-streamed SPX options data was good enough for historical research and backtesting. A respondent described storing options data and dealing with storage and split/reconciliation constraints. This is an older signal and requires fresh confirmation.
+  - https://www.reddit.com/r/algotrading/comments/ogfzkw
+- A Quantitative Finance Stack Exchange question lists missing data, timestamp mismatches and block-trade cleaning as practical market-data storage/backtest concerns.
+  - https://quant.stackexchange.com/questions/32518/practical-challenges-in-storing-and-managing-market-data
+
+**Lead-handling rule:** public usernames are research leads only. No one has been contacted, and no user data has been requested. Do not present these people as prospects who agreed to participate.
+
+## 5. Discovery questions
 
 Do not pitch first. Ask about the user's last real incident and current workflow.
 
@@ -83,7 +98,7 @@ Do not pitch first. Ask about the user's last real incident and current workflow
 
 Ask for a recent file or a sanitized sample only after permission. Never request API keys, credentials, proprietary data without authorization, or unrestricted access.
 
-## 5. What counts as willingness-to-pay evidence
+## 6. What counts as willingness-to-pay evidence
 
 Rank evidence from weak to strong:
 
@@ -95,7 +110,7 @@ Rank evidence from weak to strong:
 
 Do not report levels 1–3 as revenue or product-market fit.
 
-## 6. First pilot hypothesis
+## 7. First pilot hypothesis
 
 Offer a tightly bounded, human-reviewed audit of one options research artifact:
 - One provider and one agreed date range.
@@ -108,7 +123,7 @@ Offer a tightly bounded, human-reviewed audit of one options research artifact:
 
 Price is intentionally **not set**. First determine the customer's current cost of the problem, procurement path and the value of a verified audit. Then ask for a real paid pilot decision rather than a hypothetical price preference.
 
-## 7. Initial outreach message
+## 8. Initial outreach message
 
 **Subject: Quick question about validating options research data**
 
@@ -124,7 +139,7 @@ Would you be open to a 15-minute conversation?
 
 Thanks.
 
-## 8. Next discovery sprint
+## 9. Next discovery sprint
 
 1. Build a list of 20 independent options researchers and boutique systematic teams.
 2. Send 10 highly targeted, personalized outreach messages after Founder approval.
@@ -134,7 +149,7 @@ Thanks.
 6. Present one priced pilot offer to a user who has a recent, costly problem.
 7. Continue only if the problem, value and buyer are real.
 
-## 9. Stop / pivot criteria
+## 10. Stop / pivot criteria
 
 Revisit the product hypothesis if:
 - Most target users say their current checks are sufficient and recent failures are rare.
