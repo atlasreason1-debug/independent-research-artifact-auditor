@@ -81,25 +81,37 @@ class _DuplicateTracker:
         self._operations = 0
         if strategy == "sqlite":
             self._temporary_directory = tempfile.TemporaryDirectory(prefix="artifact-auditor-")
-            database_path = Path(self._temporary_directory.name) / "seen.sqlite"
-            self._connection = sqlite3.connect(database_path)
-            self._connection.execute(
-                "CREATE TABLE seen (symbol TEXT NOT NULL, timestamp TEXT NOT NULL, "
-                "PRIMARY KEY (symbol, timestamp)) WITHOUT ROWID"
-            )
+            try:
+                database_path = Path(self._temporary_directory.name) / "seen.sqlite"
+                self._connection = sqlite3.connect(database_path)
+                self._connection.execute(
+                    "CREATE TABLE seen (symbol TEXT NOT NULL, timestamp TEXT NOT NULL, "
+                    "PRIMARY KEY (symbol, timestamp)) WITHOUT ROWID"
+                )
+            except BaseException:
+                if self._connection is not None:
+                    self._connection.close()
+                    self._connection = None
+                self._temporary_directory.cleanup()
+                self._temporary_directory = None
+                raise
 
     def __enter__(self) -> "_DuplicateTracker":
         return self
 
     def __exit__(self, exc_type, exc_value, traceback) -> None:
-        if self._connection is not None:
-            if exc_type is None:
-                self._connection.commit()
-            self._connection.close()
-            self._connection = None
-        if self._temporary_directory is not None:
-            self._temporary_directory.cleanup()
-            self._temporary_directory = None
+        try:
+            if self._connection is not None:
+                try:
+                    if exc_type is None:
+                        self._connection.commit()
+                finally:
+                    self._connection.close()
+                    self._connection = None
+        finally:
+            if self._temporary_directory is not None:
+                self._temporary_directory.cleanup()
+                self._temporary_directory = None
 
     def is_duplicate(self, symbol: str, timestamp: str) -> bool:
         if self._keys is not None:
