@@ -58,14 +58,27 @@ def generate_csv(path: Path, rows: int, symbols: int, informational: bool) -> No
             ))
 
 
-def worker_audit(path: Path, max_issues: int | None = None) -> dict[str, object]:
+def worker_audit(
+    path: Path,
+    max_issues: int | None = None,
+    duplicate_store: str = "memory",
+) -> dict[str, object]:
     from src.artifact_auditor import audit_csv
 
     started = time.perf_counter()
-    report = audit_csv(path, single_contract_file=False, max_issues=max_issues)
+    report = audit_csv(
+        path,
+        single_contract_file=False,
+        max_issues=max_issues,
+        duplicate_store=duplicate_store,
+    )
     serialized = json.dumps(report, separators=(",", ":"), ensure_ascii=False).encode("utf-8")
     return {
-        "mode": "audit_bounded" if max_issues is not None else "audit",
+        "mode": (
+            "audit_bounded_sqlite" if max_issues is not None and duplicate_store == "sqlite"
+            else "audit_bounded" if max_issues is not None
+            else "audit"
+        ),
         "elapsed_seconds": round(time.perf_counter() - started, 3),
         "peak_rss_bytes": peak_rss_bytes(),
         "rows_read": report["counts"]["rows_read"],
@@ -141,6 +154,8 @@ def worker(mode: str, path: Path) -> dict[str, object]:
         return worker_audit(path)
     if mode == "audit_bounded":
         return worker_audit(path, max_issues=1000)
+    if mode == "audit_bounded_sqlite":
+        return worker_audit(path, max_issues=1000, duplicate_store="sqlite")
     if mode in {"ram", "sqlite"}:
         return worker_keys(path, mode)
     raise ValueError(f"Unknown worker mode: {mode}")
@@ -172,7 +187,7 @@ def main() -> int:
         "--informational", action="store_true",
         help="Set volume and OI to zero to measure repeated INFO issue growth.",
     )
-    parser.add_argument("--worker", choices=("audit", "audit_bounded", "ram", "sqlite"))
+    parser.add_argument("--worker", choices=("audit", "audit_bounded", "audit_bounded_sqlite", "ram", "sqlite"))
     parser.add_argument("--input", type=Path)
     parser.add_argument("worker_path", nargs="?", type=Path)
     args = parser.parse_args()
@@ -188,7 +203,7 @@ def main() -> int:
         csv_path = Path(directory) / "synthetic.csv"
         generate_csv(csv_path, args.rows, args.symbols, args.informational)
         results = [
-            run_isolated(mode, csv_path) for mode in ("audit", "audit_bounded", "ram", "sqlite")
+            run_isolated(mode, csv_path) for mode in ("audit", "audit_bounded", "audit_bounded_sqlite", "ram", "sqlite")
         ]
         print(json.dumps({
             "dataset": {
