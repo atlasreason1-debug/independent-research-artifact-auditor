@@ -26,6 +26,7 @@ Requires Python 3.10+; runtime uses only the Python standard library.
 python -m src.artifact_auditor path/to/data.csv
 python -m src.artifact_auditor path/to/data.csv --json report.json
 python -m src.artifact_auditor path/to/multi_contract.csv --multi-contract
+python -m src.artifact_auditor path/to/large.csv --max-issues 1000 --duplicate-store sqlite
 python -m unittest discover -s tests -v
 ```
 
@@ -41,16 +42,16 @@ python benchmarks/large_dataset_benchmark.py --rows 1000000 --symbols 10000
 python benchmarks/large_dataset_benchmark.py --rows 1000000 --symbols 10000 --informational
 ```
 
-It generates a synthetic CSV, then runs three isolated processes:
-1. The current end-to-end `audit_csv` path, recording elapsed time, peak process RSS, parsed row count, issue count, and serialized JSON report size.
+It generates a synthetic CSV, then runs five isolated processes:
+1. The end-to-end `audit_csv` path, both with the default in-memory duplicate tracker and with bounded issue samples plus a temporary SQLite duplicate tracker.
 2. A duplicate-key-only baseline using an in-memory Python set.
 3. A duplicate-key-only baseline using a temporary SQLite database with a composite primary key.
 
-The duplicate-key comparison is an isolated storage experiment, **not** a production implementation or a claim that SQLite can be substituted without design and correctness work. The informational scenario sets both volume and OI to zero on every row to expose issue-report growth.
+The bounded SQLite audit mode exercises the actual validator with disk-backed duplicate tracking. It trades some runtime for lower memory and cleans up its temporary database. The duplicate-key-only modes remain isolated baselines, not end-to-end validator measurements. The default remains in-memory for backward-compatible speed; SQLite is opt-in. The informational scenario sets both volume and OI to zero on every row to expose issue-report growth.
 
 A manual GitHub Actions workflow, **large-dataset-benchmark**, can run 100,000 or 1,000,000 rows with 1, 100, or 10,000 symbols. It uploads the JSON measurements as a workflow artifact. Run it on the `feat/validator-v0-3` branch. Linux peak RSS is reported using `resource.getrusage`; it includes Python process memory, unlike `tracemalloc` which tracks Python allocations only.
 
-**No 100K or 1M benchmark result is currently certified.** The harness must be run and its artifact inspected before making scalability claims or selecting a memory-control patch. Benchmark values are machine- and workload-dependent, not service-level guarantees.
+Benchmark measurements are synthetic and machine-dependent. The issue-sample cap and SQLite duplicate tracker are opt-in; benchmark artifacts and exact counts must be inspected before making production scalability claims. Benchmark values are machine- and workload-dependent, not service-level guarantees.
 
 ## Important limitations
 
