@@ -27,6 +27,7 @@ EXPECTED_SHA256 = "00a1c5086256ac6d66fc07f0045e755904fc240dbb29f90f9245ee5142c51
 NORMALIZED_COLUMNS = (
     "datetime", "open", "high", "low", "close", "volume", "oi",
     "name", "symbol", "strike", "expiry", "contract_type", "side",
+    "transactions", "multileg_volume", "active_minutes", "last_trade_date",
 )
 OHLC_COLUMNS = ("open", "high", "low", "close")
 
@@ -82,7 +83,13 @@ def normalize_session(source_path: Path, full_path: Path, traded_path: Path) -> 
     rows_total = 0
     rows_with_complete_ohlc = 0
     missing_ohlc = {name: 0 for name in OHLC_COLUMNS}
+    missing_ohlc_patterns: dict[str, int] = {}
     missing_ohlc_by_volume = {"zero": 0, "positive": 0, "other_or_blank": 0}
+    missing_ohlc_by_transactions = {"zero": 0, "positive": 0, "other_or_blank": 0}
+    missing_ohlc_by_multileg_volume = {"zero": 0, "positive": 0, "other_or_blank": 0}
+    positive_volume_missing_ohlc_by_transactions = {
+        "zero": 0, "positive": 0, "other_or_blank": 0
+    }
 
     with (
         source_path.open("r", encoding="utf-8-sig", newline="") as source,
@@ -114,13 +121,28 @@ def normalize_session(source_path: Path, full_path: Path, traded_path: Path) -> 
                     missing_ohlc[name] += 1
 
             volume = (row.get("volume") or "").strip()
+            transactions = (row.get("transactions") or "").strip()
+            multileg_volume = (row.get("multileg_volume") or "").strip()
+            missing_fields = sorted(
+                name for name in OHLC_COLUMNS if not (row.get(name) or "").strip()
+            )
+            if missing_fields:
+                pattern = "|".join(missing_fields)
+                missing_ohlc_patterns[pattern] = missing_ohlc_patterns.get(pattern, 0) + 1
+
+            def bucket(value: str) -> str:
+                if value == "0":
+                    return "zero"
+                if value.isdigit() and int(value) > 0:
+                    return "positive"
+                return "other_or_blank"
+
             if not has_complete_ohlc:
-                if volume == "0":
-                    missing_ohlc_by_volume["zero"] += 1
-                elif volume and volume.isdigit() and int(volume) > 0:
-                    missing_ohlc_by_volume["positive"] += 1
-                else:
-                    missing_ohlc_by_volume["other_or_blank"] += 1
+                missing_ohlc_by_volume[bucket(volume)] += 1
+                missing_ohlc_by_transactions[bucket(transactions)] += 1
+                missing_ohlc_by_multileg_volume[bucket(multileg_volume)] += 1
+                if bucket(volume) == "positive":
+                    positive_volume_missing_ohlc_by_transactions[bucket(transactions)] += 1
 
             option_type = (row.get("type") or "").strip().lower()
             side = {"call": "CE", "put": "PE"}.get(option_type, option_type.upper())
@@ -139,6 +161,10 @@ def normalize_session(source_path: Path, full_path: Path, traded_path: Path) -> 
                 "expiry": (row.get("expiration") or "").strip(),
                 "contract_type": "OPT",
                 "side": side,
+                "transactions": transactions,
+                "multileg_volume": multileg_volume,
+                "active_minutes": (row.get("active_minutes") or "").strip(),
+                "last_trade_date": (row.get("last_trade_date") or "").strip(),
             }
             full_writer.writerow(normalized)
             if has_complete_ohlc:
@@ -150,7 +176,11 @@ def normalize_session(source_path: Path, full_path: Path, traded_path: Path) -> 
         "rows_with_complete_ohlc": rows_with_complete_ohlc,
         "rows_without_complete_ohlc": rows_total - rows_with_complete_ohlc,
         "missing_ohlc_cells": missing_ohlc,
+        "missing_ohlc_field_patterns": dict(sorted(missing_ohlc_patterns.items())),
         "rows_without_complete_ohlc_by_volume": missing_ohlc_by_volume,
+        "rows_without_complete_ohlc_by_transactions": missing_ohlc_by_transactions,
+        "rows_without_complete_ohlc_by_multileg_volume": missing_ohlc_by_multileg_volume,
+        "positive_volume_missing_ohlc_by_transactions": positive_volume_missing_ohlc_by_transactions,
     }
 
 
