@@ -12,7 +12,6 @@ import urllib.request
 import zipfile
 from collections import Counter
 from datetime import datetime
-from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
@@ -31,7 +30,7 @@ URLS = (
 NORMALIZED_COLUMNS = (
     "datetime", "open", "high", "low", "close", "volume", "oi",
     "name", "symbol", "strike", "expiry", "contract_type", "side",
-    "source_instrument_type", "source_instrument_id", "source_instrument_name",
+    "transactions", "source_instrument_type", "source_instrument_id", "source_instrument_name",
 )
 
 
@@ -139,6 +138,7 @@ def main() -> None:
             "close": ("clspric", "close"),
             "volume": ("ttltradgvol", "contracts"),
             "oi": ("opnintrst", "open_int"),
+            "transactions": ("ttlnbof txsexctd".replace(" ", ""), "transactions", "no_of_trades"),
         }
         missing = [
             logical for logical, aliases in required_groups.items()
@@ -154,16 +154,21 @@ def main() -> None:
         zero_volume = 0
         positive_volume = 0
         zero_oi = 0
+        zero_volume_positive_transactions = 0
+        zero_volume_positive_transaction_examples = []
         missing_ohlc = Counter()
-        invalid_ohlc_examples = []
+        ohlc_high_anomaly_examples = []
         with (
             normalized_path.open("w", encoding="utf-8", newline="") as handle,
             traded_path.open("w", encoding="utf-8", newline="") as traded_handle,
+            active_path.open("w", encoding="utf-8", newline="") as active_handle,
         ):
             writer = csv.DictWriter(handle, fieldnames=NORMALIZED_COLUMNS)
             traded_writer = csv.DictWriter(traded_handle, fieldnames=NORMALIZED_COLUMNS)
+            active_writer = csv.DictWriter(active_handle, fieldnames=NORMALIZED_COLUMNS)
             writer.writeheader()
             traded_writer.writeheader()
+            active_writer.writeheader()
             for row in reader:
                 rows_total += 1
                 trade_date = normalize_date(pick(row, "TradDt", "BizDt"))
@@ -198,6 +203,7 @@ def main() -> None:
                     "close": pick(row, "ClsPric", "CLOSE"),
                     "volume": pick(row, "TtlTradgVol", "CONTRACTS"),
                     "oi": pick(row, "OpnIntrst", "OPEN_INT"),
+                    "transactions": pick(row, "TtlNbOfTxsExctd", "TRANSACTIONS", "NO_OF_TRADES"),
                     "name": underlying,
                     "symbol": symbol,
                     "strike": strike,
@@ -209,9 +215,30 @@ def main() -> None:
                     "source_instrument_name": instrument_name,
                 }
                 option_rows += 1
-                if values["volume"] == "0":
+                try:
+                    volume_number = Decimal(values["volume"]) if values["volume"] else None
+                except InvalidOperation:
+                    volume_number = None
+                try:
+                    transactions_number = Decimal(values["transactions"]) if values["transactions"] else None
+                except InvalidOperation:
+                    transactions_number = None
+                if volume_number == 0:
                     zero_volume += 1
-                elif values["volume"]:
+                    if transactions_number is not None and transactions_number > 0:
+                        zero_volume_positive_transactions += 1
+                        if len(zero_volume_positive_transaction_examples) < 12:
+                            zero_volume_positive_transaction_examples.append({
+                                "instrument_id": instrument_id,
+                                "instrument_name": instrument_name,
+                                "underlying": underlying,
+                                "expiry": expiry,
+                                "strike": strike,
+                                "side": side,
+                                "volume": values["volume"],
+                                "transactions": values["transactions"],
+                            })
+                elif volume_number is not None and volume_number > 0:
                     positive_volume += 1
                 if values["oi"] == "0":
                     zero_oi += 1
@@ -223,8 +250,8 @@ def main() -> None:
                 except (InvalidOperation, ValueError):
                     o = h = low = c = None
                 if o is not None and h is not None and low is not None and c is not None and h < max(o, low, c):
-                    if len(invalid_ohlc_examples) < 12:
-                        invalid_ohlc_examples.append({
+                    if len(ohlc_high_anomaly_examples) < 12:
+                        ohlc_high_anomaly_examples.append({
                             "instrument_id": instrument_id,
                             "instrument_name": instrument_name,
                             "underlying": underlying,
@@ -234,14 +261,16 @@ def main() -> None:
                             "open": values["open"], "high": values["high"],
                             "low": values["low"], "close": values["close"],
                             "volume": values["volume"],
+                            "transactions": values["transactions"],
                         })
                 writer.writerow(values)
-                if values["volume"]:
-                    try:
-                        if Decimal(values["volume"]) > 0:
-                            traded_writer.writerow(values)
-                    except InvalidOperation:
-                        pass
+                if volume_number is not None and volume_number > 0:
+                    traded_writer.writerow(values)
+                if (
+                    (volume_number is not None and volume_number > 0)
+                    or (transactions_number is not None and transactions_number > 0)
+                ):
+                    active_writer.writerow(values)
 
         if option_rows == 0:
             raise RuntimeError("No CE/PE option rows found in official NSE file")
@@ -264,10 +293,13 @@ def main() -> None:
             "zero_volume_option_rows": zero_volume,
             "positive_volume_option_rows": positive_volume,
             "zero_open_interest_option_rows": zero_oi,
+            "zero_volume_positive_transactions_option_rows": zero_volume_positive_transactions,
+            "zero_volume_positive_transaction_examples": zero_volume_positive_transaction_examples,
             "missing_ohlc_cells": dict(missing_ohlc),
-            "invalid_ohlc_high_examples": invalid_ohlc_examples,
+            "ohlc_high_anomaly_examples": ohlc_high_anomaly_examples,
             "audit_all_option_rows": compact_audit(normalized_path),
             "audit_positive_volume_options": compact_audit(traded_path),
+            "audit_active_options": compact_audit(active_path),
             "raw_vendor_data_retained": False,
             "timestamp_note": "00:00:00 is a daily grouping key only; it is not an NSE event timestamp or inferred timezone.",
         }
