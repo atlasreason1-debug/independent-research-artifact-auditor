@@ -109,7 +109,9 @@ def _parse_compact_option_symbol(
             return False
         if metadata_expiry:
             if kind == "monthly":
-                return expiry[:7] == metadata_expiry[:7]
+                # Strike identifies the monthly form; compare its encoded year-month
+                # separately so a wrong month is reported without inventing an expiry day.
+                return True
             return expiry == metadata_expiry
         return metadata_strike is not None
 
