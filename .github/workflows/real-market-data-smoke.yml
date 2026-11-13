@@ -6,6 +6,7 @@ on:
     paths:
       - "scripts/smoke_real_options_sample.py"
       - "scripts/smoke_nse_udiff_options.py"
+      - "src/**"
       - ".github/workflows/real-market-data-smoke.yml"
   pull_request:
     branches: ["main"]
