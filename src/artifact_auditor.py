@@ -8,7 +8,6 @@ from __future__ import annotations
 import argparse
 import csv
 import json
-import os
 import re
 import sqlite3
 import tempfile
@@ -76,7 +75,6 @@ class _DuplicateTracker:
     def __init__(self, strategy: str) -> None:
         if strategy not in {"memory", "sqlite"}:
             raise ValueError("duplicate_store must be 'memory' or 'sqlite'")
-        self.strategy = strategy
         self._keys: set[tuple[str, str]] | None = set() if strategy == "memory" else None
         self._temporary_directory = None
         self._connection = None
@@ -126,7 +124,7 @@ class _DuplicateTracker:
 def _audit_csv_impl(
     path: str | Path,
     *,
-    single_contract_file: bool = True,
+    single_contract_file: bool,
     max_issues: int | None,
     duplicate_tracker: _DuplicateTracker,
 ) -> dict[str, Any]:
