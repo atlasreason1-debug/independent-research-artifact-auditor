@@ -8,7 +8,10 @@ from __future__ import annotations
 import argparse
 import csv
 import json
+import os
 import re
+import sqlite3
+import tempfile
 from collections import Counter
 from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
@@ -66,11 +69,66 @@ def _parse_compact_option_symbol(name: str, symbol: str) -> tuple[str, Decimal, 
     return expiry, strike, match.group("side").upper()
 
 
-def audit_csv(
+
+class _DuplicateTracker:
+    """Track symbol/timestamp keys in RAM or a temporary SQLite database."""
+
+    def __init__(self, strategy: str) -> None:
+        if strategy not in {"memory", "sqlite"}:
+            raise ValueError("duplicate_store must be 'memory' or 'sqlite'")
+        self.strategy = strategy
+        self._keys: set[tuple[str, str]] | None = set() if strategy == "memory" else None
+        self._temporary_directory = None
+        self._connection = None
+        self._operations = 0
+        if strategy == "sqlite":
+            self._temporary_directory = tempfile.TemporaryDirectory(prefix="artifact-auditor-")
+            database_path = Path(self._temporary_directory.name) / "seen.sqlite"
+            self._connection = sqlite3.connect(database_path)
+            self._connection.execute(
+                "CREATE TABLE seen (symbol TEXT NOT NULL, timestamp TEXT NOT NULL, "
+                "PRIMARY KEY (symbol, timestamp)) WITHOUT ROWID"
+            )
+
+    def __enter__(self) -> "_DuplicateTracker":
+        return self
+
+    def __exit__(self, exc_type, exc_value, traceback) -> None:
+        if self._connection is not None:
+            if exc_type is None:
+                self._connection.commit()
+            self._connection.close()
+            self._connection = None
+        if self._temporary_directory is not None:
+            self._temporary_directory.cleanup()
+            self._temporary_directory = None
+
+    def is_duplicate(self, symbol: str, timestamp: str) -> bool:
+        if self._keys is not None:
+            key = (symbol, timestamp)
+            if key in self._keys:
+                return True
+            self._keys.add(key)
+            return False
+
+        assert self._connection is not None
+        cursor = self._connection.execute(
+            "INSERT OR IGNORE INTO seen(symbol, timestamp) VALUES (?, ?)",
+            (symbol, timestamp),
+        )
+        self._operations += 1
+        # Bound SQLite's dirty-page cache and make the temporary store genuinely disk-backed.
+        if self._operations % 10_000 == 0:
+            self._connection.commit()
+        return cursor.rowcount == 0
+
+
+def _audit_csv_impl(
     path: str | Path,
     *,
     single_contract_file: bool = True,
-    max_issues: int | None = None,
+    max_issues: int | None,
+    duplicate_tracker: _DuplicateTracker,
 ) -> dict[str, Any]:
     """Audit a CSV file and return a JSON-serializable report.
 
@@ -147,7 +205,6 @@ def audit_csv(
                 return finish("INVALID", columns)
 
             index = {name: columns.index(name) for name in columns}
-            seen: set[tuple[str, str]] = set()
             max_timestamp_seen: dict[str, datetime] = {}
             reported_symbol_metadata: set[tuple[str, str, str]] = set()
             contract_values: dict[str, set[str]] = {name: set() for name in CONTRACT_COLUMNS}
@@ -272,10 +329,8 @@ def audit_csv(
                                 reported_symbol_metadata.add(key)
 
                     if parsed_timestamp is not None and values["symbol"]:
-                        key = (values["symbol"], timestamp_text)
-                        if key in seen:
+                        if duplicate_tracker.is_duplicate(values["symbol"], timestamp_text):
                             record(_issue("error", "DUPLICATE_CONTRACT_TIMESTAMP", "Duplicate timestamp for the same symbol.", row=physical_row, column="datetime"))
-                        seen.add(key)
                         max_seen = max_timestamp_seen.get(values["symbol"])
                         if max_seen is not None and parsed_timestamp < max_seen:
                             record(_issue("warning", "NON_MONOTONIC_TIMESTAMP", "Timestamp is earlier than a timestamp already seen for this symbol.", row=physical_row, column="datetime"))
@@ -304,6 +359,26 @@ def audit_csv(
         return finish("INVALID")
 
 
+
+def audit_csv(
+    path: str | Path,
+    *,
+    single_contract_file: bool = True,
+    max_issues: int | None = None,
+    duplicate_store: str = "memory",
+) -> dict[str, Any]:
+    """Audit a CSV, optionally using disk-backed duplicate-key tracking."""
+    if max_issues is not None and max_issues < 0:
+        raise ValueError("max_issues must be non-negative or None")
+    with _DuplicateTracker(duplicate_store) as duplicate_tracker:
+        return _audit_csv_impl(
+            path,
+            single_contract_file=single_contract_file,
+            max_issues=max_issues,
+            duplicate_tracker=duplicate_tracker,
+        )
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description="Audit a market-data CSV for structural and row-level integrity.")
     parser.add_argument("csv_file", help="Path to input CSV")
@@ -313,12 +388,17 @@ def main() -> int:
         "--max-issues", type=int, default=None,
         help="Limit detailed issue samples while preserving exact issue counts.",
     )
+    parser.add_argument(
+        "--duplicate-store", choices=("memory", "sqlite"), default="memory",
+        help="Store duplicate keys in RAM (faster) or a temporary SQLite database (lower memory).",
+    )
     args = parser.parse_args()
 
     report = audit_csv(
         args.csv_file,
         single_contract_file=not args.multi_contract,
         max_issues=args.max_issues,
+        duplicate_store=args.duplicate_store,
     )
     rendered = json.dumps(report, indent=2, ensure_ascii=False)
     if args.json_path:
