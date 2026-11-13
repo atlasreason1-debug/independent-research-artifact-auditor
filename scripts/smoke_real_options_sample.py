@@ -122,6 +122,7 @@ def normalize_session(source_path: Path, full_path: Path, traded_path: Path) -> 
     missing_ohlc = {name: 0 for name in OHLC_COLUMNS}
     missing_ohlc_patterns: dict[str, int] = {}
     missing_ohlc_activity_patterns: dict[str, int] = {}
+    missing_ohlc_activity_examples: list[dict[str, str]] = []
     missing_ohlc_by_volume = {"zero": 0, "positive": 0, "other_or_blank": 0}
     missing_ohlc_by_transactions = {"zero": 0, "positive": 0, "other_or_blank": 0}
     missing_ohlc_by_multileg_volume = {"zero": 0, "positive": 0, "other_or_blank": 0}
@@ -213,6 +214,23 @@ def normalize_session(source_path: Path, full_path: Path, traded_path: Path) -> 
                 "active_minutes": (row.get("active_minutes") or "").strip(),
                 "last_trade_date": (row.get("last_trade_date") or "").strip(),
             }
+            if missing_fields and (bucket(volume) == "positive" or bucket(transactions) == "positive") and len(missing_ohlc_activity_examples) < 20:
+                missing_ohlc_activity_examples.append({
+                    "contract": (row.get("contract") or "").strip(),
+                    "underlying": (row.get("underlying") or "").strip(),
+                    "expiration": (row.get("expiration") or "").strip(),
+                    "type": (row.get("type") or "").strip(),
+                    "strike": (row.get("strike") or "").strip(),
+                    "bid": (row.get("bid") or "").strip(),
+                    "ask": (row.get("ask") or "").strip(),
+                    "volume": volume,
+                    "transactions": transactions,
+                    "multileg_volume": multileg_volume,
+                    "active_minutes": normalized["active_minutes"],
+                    "last_trade_date": normalized["last_trade_date"],
+                    "open": normalized["open"], "high": normalized["high"],
+                    "low": normalized["low"], "close": normalized["close"],
+                })
             full_writer.writerow(normalized)
             if has_complete_ohlc:
                 traded_writer.writerow(normalized)
@@ -225,6 +243,7 @@ def normalize_session(source_path: Path, full_path: Path, traded_path: Path) -> 
         "missing_ohlc_cells": missing_ohlc,
         "missing_ohlc_field_patterns": dict(sorted(missing_ohlc_patterns.items())),
         "missing_ohlc_activity_patterns": dict(sorted(missing_ohlc_activity_patterns.items())),
+        "missing_ohlc_activity_examples": missing_ohlc_activity_examples,
         "rows_without_complete_ohlc_by_volume": missing_ohlc_by_volume,
         "rows_without_complete_ohlc_by_transactions": missing_ohlc_by_transactions,
         "rows_without_complete_ohlc_by_multileg_volume": missing_ohlc_by_multileg_volume,
