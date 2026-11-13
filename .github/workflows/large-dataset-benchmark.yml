@@ -4,11 +4,13 @@ on:
   push:
     branches: ["feat/validator-v0-3"]
     paths:
+      - "src/**"
       - "benchmarks/**"
       - ".github/workflows/large-dataset-benchmark.yml"
   pull_request:
     branches: ["main"]
     paths:
+      - "src/**"
       - "benchmarks/**"
       - ".github/workflows/large-dataset-benchmark.yml"
   workflow_dispatch:
