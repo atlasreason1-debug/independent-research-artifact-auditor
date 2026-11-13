@@ -42,31 +42,92 @@ def _issue(severity: str, code: str, message: str, row: int | None = None,
     return item
 
 
-def _parse_compact_option_symbol(name: str, symbol: str) -> tuple[str, Decimal, str] | None:
-    """Parse only the observed {name}{DDMMMYY}{strike}{CE|PE} symbol shape.
+def _parse_compact_option_symbol(
+    name: str,
+    symbol: str,
+    metadata_expiry: str | None = None,
+    metadata_strike: Decimal | None = None,
+) -> tuple[str, Decimal, str] | None:
+    """Parse known option symbol shapes, using metadata to disambiguate dates.
 
-    Unknown symbol conventions are deliberately ignored rather than guessed.
-    The returned expiry is ISO YYYY-MM-DD.
+    Supported forms:
+    - {name}{DDMMMYY}{strike}{CE|PE}
+    - {name}{YYMMMDD}{strike}{CE|PE}
+    - {name}{YYMMM}{strike}{CE|PE} (monthly; day is not encoded)
+
+    The monthly form is compared at year-month precision because its symbol
+    does not contain an expiry day. Unknown shapes remain ignored.
     """
-    if not name or not symbol:
+    if not name or not symbol or len(symbol) <= len(name):
         return None
-    pattern = re.compile(
-        rf"^{re.escape(name)}(?P<expiry>\d{{2}}[A-Z]{{3}}\d{{2}})"
-        rf"(?P<strike>\d+(?:\.\d+)?)(?P<side>CE|PE)$",
-        re.IGNORECASE,
-    )
-    match = pattern.fullmatch(symbol)
-    if match is None:
+    if symbol[:len(name)].casefold() != name.casefold():
         return None
-    try:
-        expiry = datetime.strptime(match.group("expiry").upper(), "%d%b%y").date().isoformat()
-        strike = Decimal(match.group("strike"))
-    except (ValueError, InvalidOperation):
-        return None
-    if not strike.is_finite():
-        return None
-    return expiry, strike, match.group("side").upper()
 
+    suffix = symbol[len(name):]
+    side = suffix[-2:].upper()
+    if side not in {"CE", "PE"}:
+        return None
+    body = suffix[:-2]
+
+    candidates: list[tuple[str, Decimal, str, str]] = []
+    for prefix_length, date_format, kind in (
+        (7, "%y%b%d", "weekly"),
+        (7, "%d%b%y", "legacy"),
+        (5, "%y%b", "monthly"),
+    ):
+        if len(body) <= prefix_length:
+            continue
+        date_text = body[:prefix_length].upper()
+        strike_text = body[prefix_length:]
+        if re.fullmatch(r"\d+(?:\.\d+)?", strike_text) is None:
+            continue
+        try:
+            parsed_date = datetime.strptime(date_text, date_format).date()
+            strike = Decimal(strike_text)
+        except (ValueError, InvalidOperation):
+            continue
+        if not strike.is_finite():
+            continue
+
+        if kind == "monthly":
+            year_month = parsed_date.strftime("%Y-%m")
+            expiry = (
+                metadata_expiry
+                if metadata_expiry and metadata_expiry[:7] == year_month
+                else f"{year_month}-01"
+            )
+        else:
+            expiry = parsed_date.isoformat()
+        candidates.append((expiry, strike, side, kind))
+
+    if not candidates:
+        return None
+
+    def matches_metadata(candidate: tuple[str, Decimal, str, str]) -> bool:
+        expiry, strike, _, kind = candidate
+        if metadata_strike is not None and strike != metadata_strike:
+            return False
+        if metadata_expiry:
+            if kind == "monthly":
+                return expiry[:7] == metadata_expiry[:7]
+            return expiry == metadata_expiry
+        return metadata_strike is not None
+
+    matching = [candidate for candidate in candidates if matches_metadata(candidate)]
+    if matching:
+        selected = next(
+            (candidate for candidate in matching if candidate[3] != "monthly"),
+            matching[0],
+        )
+    else:
+        selected = next(
+            (candidate for kind in ("legacy", "weekly", "monthly")
+             for candidate in candidates if candidate[3] == kind),
+            candidates[0],
+        )
+
+    expiry, strike, parsed_side, _ = selected
+    return expiry, strike, parsed_side
 
 
 class _DuplicateTracker:
@@ -306,7 +367,12 @@ def _audit_csv_impl(
                     if values["contract_type"] and values["contract_type"] not in {"OPT", "OPTIONS"}:
                         record(_issue("warning", "UNRECOGNIZED_CONTRACT_TYPE", "contract_type is not one of the recognized option labels OPT/OPTIONS.", row=physical_row, column="contract_type"))
 
-                    parsed_symbol = _parse_compact_option_symbol(values["name"], values["symbol"])
+                    parsed_symbol = _parse_compact_option_symbol(
+                        values["name"],
+                        values["symbol"],
+                        values["expiry"],
+                        numeric.get("strike"),
+                    )
                     if parsed_symbol is not None:
                         symbol_expiry, symbol_strike, symbol_side = parsed_symbol
                         if values["expiry"] and values["expiry"] != symbol_expiry:
