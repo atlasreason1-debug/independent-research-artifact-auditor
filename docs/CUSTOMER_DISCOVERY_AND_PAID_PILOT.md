@@ -98,7 +98,7 @@ Do not scrape personal contact details or send unsolicited bulk messages. Ask fo
 
 ### Research Data Intake Audit — fixed-scope pilot
 
-**Price hypothesis:** USD 250 one-time for one dataset, up to 1,000,000 rows, one documented schema, and one audit report. This is a price to test, not an established market price.
+**Price hypotheses to test:** USD 99 one-time for an independent researcher (one CSV, up to 250,000 rows, automated report); USD 250 one-time for a small team (one dataset, up to 1,000,000 rows, report plus 30-minute review). These are test prices, not established market prices. Start with the lower-scope offer for an individual prospect; do not discount further before asking what budget they control.
 
 **Deliverables**
 1. Input manifest: filename, size, row count and cryptographic hash.
@@ -125,7 +125,7 @@ Do not scrape personal contact details or send unsolicited bulk messages. Ask fo
 5. How often does this happen?
 6. What checks do you already run, and what do they miss?
 7. Would you share a redacted sample to compare your current process with an independent report?
-8. If the report finds actionable issues, would you approve a USD 250 fixed-scope audit? Who controls that budget?
+8. If the report finds actionable issues, would you approve a USD 99 fixed-scope audit (individual) or USD 250 (team)? Who controls that budget?
 9. What would have to be true for this to be worth paying for again?
 
 Do not lead with the product pitch. Establish the workflow, cost and existing workaround first.
