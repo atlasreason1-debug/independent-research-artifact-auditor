@@ -12,6 +12,7 @@ import urllib.request
 import zipfile
 from collections import Counter
 from datetime import datetime
+from decimal import Decimal, InvalidOperation
 from pathlib import Path
 from typing import Any
 
@@ -107,6 +108,7 @@ def main() -> None:
         root = Path(temporary)
         archive_path = root / FILENAME
         normalized_path = root / "normalized_nse_options.csv"
+        active_path = root / "normalized_nse_active_options.csv"
         traded_path = root / "normalized_nse_options_positive_volume.csv"
         source_url = download_archive(archive_path)
         archive_bytes = archive_path.read_bytes()
