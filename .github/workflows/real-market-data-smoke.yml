@@ -1,0 +1,36 @@
+name: real-market-data-smoke
+
+on:
+  push:
+    branches: ["feat/validator-v0-3"]
+    paths:
+      - "scripts/smoke_real_options_sample.py"
+      - ".github/workflows/real-market-data-smoke.yml"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "scripts/smoke_real_options_sample.py"
+      - ".github/workflows/real-market-data-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  real-options-sample:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Download and audit one verified real options session
+        run: python scripts/smoke_real_options_sample.py | tee real-market-data-results.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: real-options-market-data-audit
+          path: real-market-data-results.json
+          if-no-files-found: error
