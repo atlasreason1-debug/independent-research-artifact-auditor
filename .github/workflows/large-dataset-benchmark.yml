@@ -1,0 +1,76 @@
+name: large-dataset-benchmark
+
+on:
+  push:
+    branches: ["feat/validator-v0-3"]
+    paths:
+      - "src/**"
+      - "benchmarks/**"
+      - ".github/workflows/large-dataset-benchmark.yml"
+  pull_request:
+    branches: ["main"]
+    paths:
+      - "src/**"
+      - "benchmarks/**"
+      - ".github/workflows/large-dataset-benchmark.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - rows: 100000
+            symbols: 1
+            informational: false
+          - rows: 100000
+            symbols: 100
+            informational: false
+          - rows: 100000
+            symbols: 10000
+            informational: false
+          - rows: 1000000
+            symbols: 1
+            informational: false
+          - rows: 1000000
+            symbols: 100
+            informational: false
+          - rows: 1000000
+            symbols: 10000
+            informational: false
+          - rows: 1000000
+            symbols: 100000
+            informational: false
+          - rows: 100000
+            symbols: 100
+            informational: true
+          - rows: 1000000
+            symbols: 100
+            informational: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Run isolated benchmark
+        run: |
+          set -o pipefail
+          args=(--rows "${{ matrix.rows }}" --symbols "${{ matrix.symbols }}")
+          if [ "${{ matrix.informational }}" = "true" ]; then
+            args+=(--informational)
+          fi
+          python benchmarks/large_dataset_benchmark.py "${args[@]}" | tee benchmark-results.json
+      - uses: actions/upload-artifact@v4
+        with:
+          name: benchmark-r${{ matrix.rows }}-s${{ matrix.symbols }}-info${{ matrix.informational }}
+          path: benchmark-results.json
+          if-no-files-found: error
