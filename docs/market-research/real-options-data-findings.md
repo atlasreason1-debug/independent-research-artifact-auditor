@@ -78,6 +78,14 @@ Among rows with positive volume and incomplete OHLC:
 - 54 had positive transaction counts.
 - 593 had blank/other transaction counts.
 
+Detailed activity patterns from the same verified session:
+- All four OHLC fields blank, volume zero, transaction count blank and multi-leg volume blank: 19,774 rows.
+- All four OHLC fields blank, volume positive, transaction count blank and multi-leg volume blank: 539 rows.
+- All four OHLC fields blank, volume positive, transaction count blank and multi-leg volume positive: 48 rows.
+- All four OHLC fields blank, volume positive, transaction count blank and multi-leg volume zero: 6 rows.
+- Open/high/low blank but close populated, volume positive and transactions positive: 54 rows (51 with positive multi-leg volume, 3 with zero multi-leg volume).
+- Close blank but open/high/low populated, volume zero and transactions positive: 44 rows (26 with positive multi-leg volume, 18 with zero multi-leg volume).
+
 ## 5. Root-cause interpretation
 
 The current validator marks every empty OHLC cell as EMPTY_REQUIRED_VALUE. That assumption is too strict for this options dataset.
