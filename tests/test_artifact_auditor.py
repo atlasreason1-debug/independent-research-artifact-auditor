@@ -49,10 +49,50 @@ class AuditorTests(unittest.TestCase):
 
     def test_empty_required_numeric_value_has_no_duplicate_numeric_error(self):
         row = valid_row()
-        row[REQUIRED_COLUMNS.index("close")] = ""
+        row[REQUIRED_COLUMNS.index("volume")] = ""
         report = self.audit_rows([row])
-        matching = [x for x in report["issues"] if x.get("column") == "close"]
+        matching = [x for x in report["issues"] if x.get("column") == "volume"]
         self.assertEqual([x["code"] for x in matching], ["EMPTY_REQUIRED_VALUE"])
+
+    def test_blank_ohlc_is_availability_not_required_value_error(self):
+        row = valid_row(open="", high="", low="", close="", volume="0")
+        report = self.audit_rows([row])
+        self.assertEqual(report["status"], "VALID")
+        self.assertNotIn("EMPTY_REQUIRED_VALUE", self.codes(report))
+        self.assertEqual(report["ohlc_availability"]["rows_with_no_fields"], 1)
+        self.assertEqual(
+            report["ohlc_availability"]["missing_cells_by_column"],
+            {"close": 1, "high": 1, "low": 1, "open": 1},
+        )
+
+    def test_partial_ohlc_is_reported_as_warning(self):
+        row = valid_row(close="", volume="0")
+        report = self.audit_rows([row])
+        self.assertEqual(report["status"], "VALID")
+        self.assertIn("PARTIAL_OHLC_FIELDS", self.codes(report))
+        self.assertEqual(report["ohlc_availability"]["rows_with_partial_fields"], 1)
+
+    def test_ohlc_unavailable_with_volume_is_warning_not_error(self):
+        headers = REQUIRED_COLUMNS + ["transactions"]
+        row = valid_row(open="", high="", low="", close="", volume="10") + [""]
+        report = self.audit_rows([row], headers=headers)
+        self.assertEqual(report["status"], "VALID")
+        self.assertIn("OHLC_UNAVAILABLE_WITH_ACTIVITY", self.codes(report))
+        self.assertNotIn("EMPTY_REQUIRED_VALUE", self.codes(report))
+
+    def test_zero_volume_no_trade_row_skips_ohlc_consistency(self):
+        headers = REQUIRED_COLUMNS + ["transactions"]
+        row = valid_row(open="0", high="0", low="0", close="100", volume="0") + ["0"]
+        report = self.audit_rows([row], headers=headers)
+        self.assertEqual(report["status"], "VALID")
+        self.assertNotIn("INVALID_OHLC_HIGH", self.codes(report))
+
+    def test_zero_volume_with_positive_transactions_still_checks_ohlc(self):
+        headers = REQUIRED_COLUMNS + ["transactions"]
+        row = valid_row(open="0", high="0", low="0", close="100", volume="0") + ["1"]
+        report = self.audit_rows([row], headers=headers)
+        self.assertEqual(report["status"], "INVALID")
+        self.assertIn("INVALID_OHLC_HIGH", self.codes(report))
 
     def test_nan_and_infinity_are_non_finite(self):
         row = valid_row(open="NaN", close="inf")
